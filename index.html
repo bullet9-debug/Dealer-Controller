@@ -6,7 +6,7 @@
 <title>Dealer Workshop Controller</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:100vh;}
@@ -759,7 +759,7 @@ function refreshAll(){
 ═══════════════════════════════════════════ */
 async function loadFromSupabase(){
   setSyncStatus('loading','⏳ Loading...');
-  if(!supabase){setSyncStatus('error','⚠ Offline — local only');tryLocal();return;}
+  if(!supabase){setSyncStatus('error','⚠ Script failed to load');tryLocal();return;}
   try{
     var res=await supabase.from('workshop_state').select('data').eq('id',WORKSHOP_ID).single();
     if(res.error){
