@@ -6,9 +6,7 @@
 <title>Dealer Workshop Controller</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script>
-/* PASTE SUPABASE SCRIPT HERE — replace this comment with the full contents of https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js */
-</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:100vh;}
@@ -607,8 +605,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 var SUPA_URL = 'https://sfouavkovlsnmbxdbujs.supabase.co';
 var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmb3Vhdmtvdmxzbm1ieGRidWpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNzA0NzUsImV4cCI6MjA5NTY0NjQ3NX0.EslHPDGG66SSg2UuQNKlCDVFp2CGrrq7xvHeIUxqJH0';
 var WORKSHOP_ID = 'dealer_main';
-var supabase = null;
-try { supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY); } catch(e){}
+var supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 var _saveTimer = null;
 var _syncChannel = null;
 
@@ -761,7 +758,7 @@ function refreshAll(){
 ═══════════════════════════════════════════ */
 async function loadFromSupabase(){
   setSyncStatus('loading','⏳ Loading...');
-  if(!supabase){setSyncStatus('error','⚠ Script failed to load');tryLocal();return;}
+  if(!supabase){setSyncStatus('error','⚠ Client not initialised');tryLocal();return;}
   try{
     var res=await supabase.from('workshop_state').select('data').eq('id',WORKSHOP_ID).single();
     if(res.error){
