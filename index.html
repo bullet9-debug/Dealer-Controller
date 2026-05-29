@@ -774,7 +774,7 @@ async function loadFromSupabase(){
     refreshAll();
     subscribeToChanges();
   }catch(e){
-    setSyncStatus('error','⚠ Offline — local only');
+    setSyncStatus('error','⚠ Error: '+(e.message||e.code||JSON.stringify(e)));
     tryLocal();
   }
 }
