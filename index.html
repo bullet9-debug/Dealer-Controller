@@ -352,6 +352,18 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 .dvla-pill{font-size:11px;font-weight:700;background:#f0f2f5;border:1px solid #d1d9e6;border-radius:3px;padding:2px 6px;color:#4a5f7a;}
 .dvla-pill.hi{background:rgba(231,76,60,0.1);border-color:#e74c3c;color:#c0392b;}
 .dvla-pill.ev{background:rgba(39,174,96,0.1);border-color:#27ae60;color:#1e8449;}
+.dvla-info-cell{padding:7px 10px;background:#fff;}
+.dvla-info-cell-label{font-size:9px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:#6b7c96;margin-bottom:2px;}
+.dvla-info-cell-value{font-size:13px;font-weight:800;color:#1a2b44;line-height:1.2;}
+.dvla-info-cell-sub{font-size:10px;color:#6b7c96;margin-top:1px;}
+.dvla-info-cell.status-ok{background:rgba(39,174,96,0.06);border-top:2px solid #27ae60;}
+.dvla-info-cell.status-ok .dvla-info-cell-value{color:#1e8449;}
+.dvla-info-cell.status-warn{background:rgba(243,156,18,0.06);border-top:2px solid #f39c12;}
+.dvla-info-cell.status-warn .dvla-info-cell-value{color:#d68910;}
+.dvla-info-cell.status-hi{background:rgba(231,76,60,0.06);border-top:2px solid #e74c3c;}
+.dvla-info-cell.status-hi .dvla-info-cell-value{color:#c0392b;}
+.dvla-info-cell.status-none{background:#f7f8fa;border-top:2px solid #d1d9e6;}
+.dvla-info-cell.status-none .dvla-info-cell-value{color:#8fa0b8;}
 
 /* ── CONFIRM BOX ── */
 .confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:300;align-items:center;justify-content:center;}
@@ -506,12 +518,26 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
         <div class="fg" style="max-width:155px;"><label class="flbl">Registration</label><input class="finput" id="fReg" placeholder="AB12 CDE" style="font-size:18px;font-weight:800;letter-spacing:2px;" autocomplete="off" oninput="onRegInput()"></div>
         <div class="fg"><label class="flbl">Make and Model</label><input class="finput" id="fVeh" placeholder="e.g. Vauxhall Mokka"></div>
       </div>
+      <input type="hidden" id="fMotExp">
+      <input type="hidden" id="fTaxDue">
+      <input type="hidden" id="fTaxStatus">
       <div id="dvlaRow" style="display:none;">
         <div class="dvla-row">
           <button class="dvla-btn" id="dvlaBtn" onclick="lookupDVLA()">Lookup DVLA</button>
           <span class="dvla-status" id="dvlaStatus" style="display:none;"></span>
         </div>
-        <div class="dvla-detail" id="dvlaDetail"></div>
+        <div id="dvlaInfoPanel" style="display:none;margin-top:6px;background:#f7f9fc;border:1px solid #c8d4e8;border-radius:5px;overflow:hidden;">
+          <div id="dvlaInfoHeader" style="background:#003087;padding:6px 10px;display:flex;align-items:center;gap:8px;">
+            <span id="dvlaInfoTitle" style="font-size:12px;font-weight:800;color:#fff;letter-spacing:0.5px;flex:1;"></span>
+            <span id="dvlaInfoCache" style="font-size:10px;color:rgba(255,255,255,0.6);"></span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:none;">
+            <div id="dvlaTaxCell" class="dvla-info-cell"></div>
+            <div id="dvlaMotCell" class="dvla-info-cell" style="border-left:1px solid #c8d4e8;"></div>
+          </div>
+          <div id="dvlaExtraRow" style="display:flex;gap:4px;flex-wrap:wrap;padding:5px 8px;border-top:1px solid #c8d4e8;background:#fff;"></div>
+        </div>
+        <div class="dvla-detail" id="dvlaDetail" style="display:none;"></div>
       </div>
 
       <!-- Stage selector (populated by JS based on board) -->
@@ -546,10 +572,16 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
       <div class="msec">Dates</div>
       <div class="frow">
         <div class="fg"><label class="flbl">Date In</label>
-<input type="date" class="finput date-input" id="fDateIn" style="width:100%;">
+          <div class="date-picker-wrap">
+            <div class="date-display-btn" id="fDateInBtn">📅 Select date</div>
+            <input type="date" class="date-overlay-input" id="fDateIn" oninput="updateDateBtn('fDateIn','fDateInBtn')">
+          </div>
         </div>
         <div class="fg"><label class="flbl">Promised / ETA</label>
-<input type="date" class="finput date-input" id="fEta" style="width:100%;">
+          <div class="date-picker-wrap">
+            <div class="date-display-btn" id="fEtaBtn">📅 Select date</div>
+            <input type="date" class="date-overlay-input" id="fEta" oninput="updateDateBtn('fEta','fEtaBtn')">
+          </div>
         </div>
       </div>
 
@@ -572,7 +604,10 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
           <div class="frow">
             <div class="fg"><label class="flbl">Sales Executive</label><select class="fselect" id="fSalesExec"></select></div>
             <div class="fg"><label class="flbl">Handover Date</label>
-<input type="date" class="finput date-input" id="fHandover" style="width:100%;">
+              <div class="date-picker-wrap">
+                <div class="date-display-btn" id="fHandoverBtn">📅 Select date</div>
+                <input type="date" class="date-overlay-input" id="fHandover" oninput="updateDateBtn('fHandover','fHandoverBtn')">
+              </div>
             </div>
           </div>
         </div>
@@ -587,7 +622,13 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
   </div>
 </div>
 
-<style>.date-input{color-scheme:light;}</style>
+<style>
+.date-picker-wrap{position:relative;width:100%;display:block;}
+.date-display-btn{width:100%;background:#fff;border:1px solid #d1d9e6;color:#8fa0b8;font-size:13px;font-weight:400;padding:7px 10px;border-radius:3px;text-align:left;cursor:pointer;display:block;line-height:1.4;pointer-events:none;}
+.date-picker-wrap:hover .date-display-btn{border-color:#003087;}
+.date-display-btn.has-date{color:#1a2b44;font-weight:700;}
+.date-overlay-input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:13px;border:none;background:transparent;}
+</style>
 
 <!-- CONFIRM -->
 <div class="confirm-overlay" id="confirmOverlay">
@@ -818,9 +859,11 @@ function confirmAction(msg,cb){
   document.getElementById('confirmOk').onclick=function(){document.getElementById('confirmOverlay').classList.remove('op');cb();};
   document.getElementById('confirmCancel').onclick=function(){document.getElementById('confirmOverlay').classList.remove('op');};
 }
-function isoToDp(iso,id){var el=document.getElementById(id);if(el)el.value=iso||'';}
+function updateDateBtn(inputId,btnId){var el=document.getElementById(inputId);var btn=document.getElementById(btnId);if(!btn)return;if(el&&el.value){btn.textContent='📅 '+fmtDate(el.value);btn.className='date-display-btn has-date';}else{btn.textContent='📅 Select date';btn.className='date-display-btn no-date';}}
+function isoToDp(iso,id){var el=document.getElementById(id);if(el){el.value=iso||'';var btnMap={'fDateIn':'fDateInBtn','fEta':'fEtaBtn','fHandover':'fHandoverBtn'};var btnId=btnMap[id];if(btnId)updateDateBtn(id,btnId);}}
+function updateDateDisplay(inputId,dispId){var el=document.getElementById(inputId);var disp=document.getElementById(dispId);if(!disp)return;disp.textContent=el&&el.value?fmtDate(el.value):'';}
 function dpToIso(id){var el=document.getElementById(id);return el?el.value:'';}
-function clearDp(id){var el=document.getElementById(id);if(el)el.value='';}
+function clearDp(id){var el=document.getElementById(id);if(el)el.value='';var btnMap={'fDateIn':'fDateInBtn','fEta':'fEtaBtn','fHandover':'fHandoverBtn'};var btnId=btnMap[id];var btn=btnId&&document.getElementById(btnId);if(btn){btn.textContent='📅 Select date';btn.className='date-display-btn no-date';}}
 function fmtDate(iso){if(!iso)return'';var p=iso.split('-');if(p.length!==3)return iso;return p[2]+'/'+p[1]+'/'+p[0].slice(2);}
 function capitalise(str){if(!str)return'';return str.charAt(0).toUpperCase()+str.slice(1).toLowerCase();}
 
@@ -1086,6 +1129,25 @@ function makeRetailCard(job){
   });
   var detail=mk('div','jcard-detail');
   if(job.eta){var etaD=mk('div','jcom-i');etaD.textContent='Promised: '+fmtDate(job.eta);detail.appendChild(etaD);}
+  /* MOT / Tax info */
+  if(job.motExp||job.taxDue||job.taxStatus){
+    var now2=new Date();
+    if(job.motExp){
+      var mDate=new Date(job.motExp);var mDays=Math.round((mDate-now2)/86400000);
+      var mEl=mk('div','jcom-i'+(mDate<now2?' c':mDays<=30?' w':''));
+      mEl.textContent='MOT: '+(mDate<now2?'EXPIRED ':mDays<=30?'Due soon ':'Until ')+fmtDate(job.motExp)+(mDays>0&&mDays<=30?' ('+mDays+'d)':'');
+      detail.appendChild(mEl);
+    }
+    if(job.taxDue){
+      var tDate=new Date(job.taxDue);var tDays=Math.round((tDate-now2)/86400000);
+      var tEl=mk('div','jcom-i'+(tDate<now2?' c':tDays<=30?' w':''));
+      tEl.textContent='Tax: '+(tDate<now2?'EXPIRED ':tDays<=30?'Due soon ':'Until ')+fmtDate(job.taxDue)+(tDays>0&&tDays<=30?' ('+tDays+'d)':'');
+      detail.appendChild(tEl);
+    }else if(job.taxStatus&&!job.taxDue){
+      var tsEl=mk('div','jcom-i'+(/taxed/i.test(job.taxStatus)?'':' c'));
+      tsEl.textContent='Tax: '+capitalise(job.taxStatus);detail.appendChild(tsEl);
+    }
+  }
   if(job.notes){var nd=mk('div','jnotes');nd.textContent=job.notes.slice(0,80)+(job.notes.length>80?'…':'');detail.appendChild(nd);}
   app(card,top,row2,flagRow,detail);
   card.addEventListener('click',function(){openEditRetail(job.id);});
@@ -1162,6 +1224,25 @@ function makeSalesCard(job){
   var detail=mk('div','jcard-detail');
   if(job.eta){var etaD=mk('div','jcom-i');etaD.textContent='Handover: '+fmtDate(job.eta);detail.appendChild(etaD);}
   if(job.handoverDate){var hd=mk('div','jcom-i');hd.textContent='H/O Date: '+fmtDate(job.handoverDate);detail.appendChild(hd);}
+  /* MOT / Tax info */
+  if(job.motExp||job.taxDue||job.taxStatus){
+    var now3=new Date();
+    if(job.motExp){
+      var mDate2=new Date(job.motExp);var mDays2=Math.round((mDate2-now3)/86400000);
+      var mEl2=mk('div','jcom-i'+(mDate2<now3?' c':mDays2<=30?' w':''));
+      mEl2.textContent='MOT: '+(mDate2<now3?'EXPIRED ':mDays2<=30?'Due soon ':'Until ')+fmtDate(job.motExp)+(mDays2>0&&mDays2<=30?' ('+mDays2+'d)':'');
+      detail.appendChild(mEl2);
+    }
+    if(job.taxDue){
+      var tDate2=new Date(job.taxDue);var tDays2=Math.round((tDate2-now3)/86400000);
+      var tEl2=mk('div','jcom-i'+(tDate2<now3?' c':tDays2<=30?' w':''));
+      tEl2.textContent='Tax: '+(tDate2<now3?'EXPIRED ':tDays2<=30?'Due soon ':'Until ')+fmtDate(job.taxDue)+(tDays2>0&&tDays2<=30?' ('+tDays2+'d)':'');
+      detail.appendChild(tEl2);
+    }else if(job.taxStatus&&!job.taxDue){
+      var tsEl2=mk('div','jcom-i'+(/taxed/i.test(job.taxStatus)?'':' c'));
+      tsEl2.textContent='Tax: '+capitalise(job.taxStatus);detail.appendChild(tsEl2);
+    }
+  }
   if(job.notes){var nd=mk('div','jnotes');nd.textContent=job.notes.slice(0,80)+(job.notes.length>80?'…':'');detail.appendChild(nd);}
   app(card,top,row2,detail);
   card.addEventListener('click',function(){openEditSales(job.id);});
@@ -1224,9 +1305,12 @@ function clearModal(){
   ['fReg','fVeh','fLabHrs','fValue','fAuthRef','fNotes'].forEach(function(id){document.getElementById(id).value='';});
   document.querySelectorAll('.ftog').forEach(function(b){var f=b.dataset.flag;b.className='ftog';});
   var todayIso=new Date().toISOString().split('T')[0];isoToDp(todayIso,'fDateIn');clearDp('fEta');clearDp('fHandover');
+  ['fMotExp','fTaxDue','fTaxStatus'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('dvlaRow').style.display='none';
   document.getElementById('dvlaStatus').style.display='none';
   document.getElementById('dvlaDetail').innerHTML='';
+  document.getElementById('dvlaInfoPanel').style.display='none';
+  document.getElementById('dvlaExtraRow').innerHTML='';
   document.getElementById('expandBody').classList.remove('open');
   document.getElementById('expandToggle').classList.remove('open');
 }
@@ -1235,6 +1319,9 @@ function fillJobData(job){
   document.getElementById('fReg').value=job.reg||'';
   document.getElementById('fVeh').value=job.veh||'';
   document.getElementById('fNotes').value=job.notes||'';
+  document.getElementById('fMotExp').value=job.motExp||'';
+  document.getElementById('fTaxDue').value=job.taxDue||'';
+  document.getElementById('fTaxStatus').value=job.taxStatus||'';
   isoToDp(job.dateIn||'','fDateIn');
   isoToDp(job.eta||'','fEta');
   if(editBoard==='retail'){
@@ -1319,7 +1406,10 @@ document.getElementById('saveBtn').addEventListener('click',function(){
     dateIn:dpToIso('fDateIn'),
     eta:dpToIso('fEta'),
     advId:document.getElementById('fAdv').value,
-    techId:document.getElementById('fTech').value
+    techId:document.getElementById('fTech').value,
+    motExp:document.getElementById('fMotExp').value||'',
+    taxDue:document.getElementById('fTaxDue').value||'',
+    taxStatus:document.getElementById('fTaxStatus').value||''
   };
   if(editBoard==='retail'){
     var flags=[];document.querySelectorAll('.ftog').forEach(function(b){var f=b.dataset.flag;if(b.classList.contains('on-'+f))flags.push(f);});
@@ -1678,20 +1768,136 @@ function lookupDVLA(){
 }
 
 function populateDVLAResult(data,fromCache){
-  var statusEl=document.getElementById('dvlaStatus');var detailEl=document.getElementById('dvlaDetail');detailEl.innerHTML='';
-  var make=data.make?capitalise(data.make):'';var model=data.model?capitalise(data.model):'';var colour=data.colour?capitalise(data.colour):'';var year=data.yearOfManufacture||'';var fuel=data.fuelType?capitalise(data.fuelType):'';var engine=data.engineCapacity?Math.round(data.engineCapacity/100)/10+'L':'';var co2=data.co2Emissions?data.co2Emissions+'g/km CO2':'';var motExp=data.motExpiryDate||'';var taxDue=data.taxDueDate||'';var euroStatus=data.euroStatus||'';var firstReg=data.monthOfFirstRegistration||'';var bodyType=data.bodyType?capitalise(data.bodyType):'';
+  var statusEl=document.getElementById('dvlaStatus');
+  var make=data.make?capitalise(data.make):'';
+  var model=data.model?capitalise(data.model):'';
+  var colour=data.colour?capitalise(data.colour):'';
+  var year=data.yearOfManufacture||'';
+  var fuel=data.fuelType?capitalise(data.fuelType):'';
+  var engine=data.engineCapacity?Math.round(data.engineCapacity/100)/10+'L':'';
+  var co2=data.co2Emissions?data.co2Emissions+'g/km':'';
+  var motExp=data.motExpiryDate||'';
+  var taxDue=data.taxDueDate||'';
+  var taxStatus=data.taxStatus||'';
+  var motStatus=data.motStatus||'';
+  var euroStatus=data.euroStatus||'';
+  var firstReg=data.monthOfFirstRegistration||'';
+  var bodyType=data.bodyType?capitalise(data.bodyType):'';
+
+  /* --- auto-fill vehicle field --- */
   var vehStr='';if(make)vehStr+=make;if(model)vehStr+=' '+model;if(colour)vehStr+=' '+colour;if(year)vehStr+=' ('+year+')';
   if(document.getElementById('fVeh').value==='')document.getElementById('fVeh').value=vehStr.trim();
-  statusEl.style.display='inline-block';statusEl.className='dvla-status ok';statusEl.textContent=(fromCache?'Cached: ':'')+make+(model?' '+model:'')+(year?' '+year:'')+(colour?' · '+colour:'');
-  function pill(text,cls){var p=mk('span','dvla-pill'+(cls?' '+cls:''));p.textContent=text;detailEl.appendChild(p);}
-  if(fuel){var isEV=fuel.toUpperCase().indexOf('ELECTRIC')!==-1;pill(fuel,isEV?'ev':'');}
-  if(engine)pill(engine);if(bodyType)pill(bodyType);if(euroStatus)pill(euroStatus);if(co2)pill(co2);if(firstReg)pill('First reg: '+firstReg);
-  if(motExp){var motDate=new Date(motExp);var motOv=motDate<new Date();pill('MOT: '+fmtDate(motExp),motOv?'hi':'');}
-  if(taxDue){var taxDate=new Date(taxDue);var taxOv=taxDate<new Date();pill('Tax: '+fmtDate(taxDue),taxOv?'hi':'');}
+  /* --- store MOT/tax for save --- */
+  var fMotExpEl=document.getElementById('fMotExp');if(fMotExpEl)fMotExpEl.value=motExp||'';
+  var fTaxDueEl=document.getElementById('fTaxDue');if(fTaxDueEl)fTaxDueEl.value=taxDue||'';
+  var fTaxStatusEl=document.getElementById('fTaxStatus');if(fTaxStatusEl)fTaxStatusEl.value=taxStatus||'';
+
+  /* --- status line --- */
+  statusEl.style.display='inline-block';statusEl.className='dvla-status ok';
+  statusEl.textContent=(fromCache?'📋 Cached · ':'')+make+(model?' '+model:'')+(year?' '+year:'')+(colour?' · '+colour:'');
+
+  /* --- rich info panel --- */
+  var panel=document.getElementById('dvlaInfoPanel');
+  var header=document.getElementById('dvlaInfoTitle');
+  var cacheTag=document.getElementById('dvlaInfoCache');
+  var taxCell=document.getElementById('dvlaTaxCell');
+  var motCell=document.getElementById('dvlaMotCell');
+  var extraRow=document.getElementById('dvlaExtraRow');
+
+  panel.style.display='block';
+  header.textContent=make+(model?' '+model:'')+(colour?' · '+colour:'')+(year?' ('+year+')':'');
+  cacheTag.textContent=fromCache?'CACHED':'LIVE';
+
+  var now=new Date();
+
+  /* Tax cell */
+  taxCell.className='dvla-info-cell';
+  taxCell.innerHTML='';
+  var taxLabel=mk('div','dvla-info-cell-label');taxLabel.textContent='Vehicle Tax';taxCell.appendChild(taxLabel);
+  var taxVal=mk('div','dvla-info-cell-value');
+  var taxSub=mk('div','dvla-info-cell-sub');
+  if(taxDue){
+    var taxDate=new Date(taxDue);
+    var taxDaysLeft=Math.round((taxDate-now)/(1000*60*60*24));
+    if(taxDate<now){
+      taxVal.textContent='EXPIRED';
+      taxSub.textContent='Due: '+fmtDate(taxDue);
+      taxCell.className='dvla-info-cell status-hi';
+    }else if(taxDaysLeft<=30){
+      taxVal.textContent='Due Soon';
+      taxSub.textContent=fmtDate(taxDue)+' ('+taxDaysLeft+'d)';
+      taxCell.className='dvla-info-cell status-warn';
+    }else{
+      taxVal.textContent='Valid';
+      taxSub.textContent='Until: '+fmtDate(taxDue);
+      taxCell.className='dvla-info-cell status-ok';
+    }
+  }else if(taxStatus){
+    taxVal.textContent=capitalise(taxStatus);
+    var isTaxed=/taxed/i.test(taxStatus);
+    taxCell.className='dvla-info-cell '+(isTaxed?'status-ok':'status-hi');
+    taxSub.textContent='No expiry date returned';
+  }else{
+    taxVal.textContent='Not Available';taxCell.className='dvla-info-cell status-none';
+  }
+  taxCell.appendChild(taxVal);taxCell.appendChild(taxSub);
+
+  /* MOT cell */
+  motCell.className='dvla-info-cell';
+  motCell.innerHTML='';
+  var motLabel=mk('div','dvla-info-cell-label');motLabel.textContent='MOT';motCell.appendChild(motLabel);
+  var motVal=mk('div','dvla-info-cell-value');
+  var motSub=mk('div','dvla-info-cell-sub');
+  if(motExp){
+    var motDate=new Date(motExp);
+    var motDaysLeft=Math.round((motDate-now)/(1000*60*60*24));
+    if(motDate<now){
+      motVal.textContent='EXPIRED';
+      motSub.textContent='Expired: '+fmtDate(motExp);
+      motCell.className='dvla-info-cell status-hi';
+    }else if(motDaysLeft<=30){
+      motVal.textContent='Due Soon';
+      motSub.textContent=fmtDate(motExp)+' ('+motDaysLeft+'d)';
+      motCell.className='dvla-info-cell status-warn';
+    }else{
+      motVal.textContent='Valid';
+      motSub.textContent='Until: '+fmtDate(motExp);
+      motCell.className='dvla-info-cell status-ok';
+    }
+  }else if(motStatus){
+    motVal.textContent=capitalise(motStatus);
+    var isValid=/valid/i.test(motStatus)||/pass/i.test(motStatus);
+    motCell.className='dvla-info-cell '+(isValid?'status-ok':'status-none');
+    motSub.textContent='No expiry date returned';
+  }else{
+    motVal.textContent='No Record';motCell.className='dvla-info-cell status-none';
+    motSub.textContent='Pre-2005 or new vehicle';
+  }
+  motCell.appendChild(motVal);motCell.appendChild(motSub);
+
+  /* Extra pills row */
+  extraRow.innerHTML='';
+  function xpill(text,cls){var p=mk('span','dvla-pill'+(cls?' '+cls:''));p.textContent=text;extraRow.appendChild(p);}
+  if(fuel){var isEV=fuel.toUpperCase().indexOf('ELECTRIC')!==-1;xpill(fuel,isEV?'ev':'');}
+  if(engine)xpill(engine);
+  if(bodyType)xpill(bodyType);
+  if(euroStatus)xpill(euroStatus);
+  if(co2)xpill(co2+' CO₂');
+  if(firstReg)xpill('First reg: '+firstReg);
+
+  /* --- auto-warn in notes --- */
   var warnings=[];
-  if(motExp&&new Date(motExp)<new Date())warnings.push('⚠ MOT expired '+fmtDate(motExp));
-  if(taxDue&&new Date(taxDue)<new Date())warnings.push('⚠ Vehicle tax expired '+fmtDate(taxDue));
-  if(warnings.length){var notesEl=document.getElementById('fNotes');var existing=notesEl.value.trim();var warnText=warnings.join(' | ');if(existing.indexOf('MOT expired')===-1&&existing.indexOf('tax expired')===-1){notesEl.value=(existing?existing+'\n':'')+warnText;document.getElementById('expandBody').classList.add('open');document.getElementById('expandToggle').classList.add('open');}}
+  if(motExp&&new Date(motExp)<now)warnings.push('⚠ MOT expired '+fmtDate(motExp));
+  if(taxDue&&new Date(taxDue)<now)warnings.push('⚠ Vehicle tax expired '+fmtDate(taxDue));
+  if(warnings.length){
+    var notesEl=document.getElementById('fNotes');var existing=notesEl.value.trim();
+    var warnText=warnings.join(' | ');
+    if(existing.indexOf('MOT expired')===-1&&existing.indexOf('tax expired')===-1){
+      notesEl.value=(existing?existing+'\n':'')+warnText;
+      document.getElementById('expandBody').classList.add('open');
+      document.getElementById('expandToggle').classList.add('open');
+    }
+  }
 }
 
 /* ═══════════════════════════════════════════
