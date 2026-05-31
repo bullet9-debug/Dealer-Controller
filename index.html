@@ -824,13 +824,14 @@ function tryLocal(){
   refreshAll();
 }
 function save(){
-  try{localStorage.setItem(SK,JSON.stringify(S));}catch(e){}
+  var clean;try{clean=JSON.parse(JSON.stringify(S));}catch(e){setSyncStatus('error','⚠ State serialisation error');return;}
+  try{localStorage.setItem(SK,JSON.stringify(clean));}catch(e){}
   if(!supabase)return;
   if(_saveTimer)clearTimeout(_saveTimer);
   setSyncStatus('saving','↑ Saving...');
   _saveTimer=setTimeout(async function(){
     try{
-      var res=await supabase.from('workshop_state').upsert({id:WORKSHOP_ID,data:S,updated_at:new Date().toISOString()});
+      var res=await supabase.from('workshop_state').upsert({id:WORKSHOP_ID,data:clean,updated_at:new Date().toISOString()});
       if(res.error)throw res.error;
       setSyncStatus('ok','✓ Synced');
     }catch(e){setSyncStatus('error','⚠ Save failed');}
@@ -1124,6 +1125,7 @@ function makeRetailCard(job){
   var reg=mk('div','jreg');reg.textContent=job.reg||'?';
   if(job.wipNo){var wipB=mk('span');wipB.style.cssText='font-size:10px;font-weight:700;color:#6b7c96;margin-left:4px;';wipB.textContent='#'+job.wipNo;reg.appendChild(wipB);}
   var ub=mk('div','jurg '+uc[urg.lv]);ub.textContent=urg.why;
+  var catDef=job.repCat?RETAIL_CATS.filter(function(c){return c.id===job.repCat;})[0]:null;
   var catB=mk('div','jcat '+(catDef?catDef.cls:'cat-none'));catB.textContent=catDef?catDef.label:'?';
   app(top,reg,ub,catB);
   if(days!==null){var dayCls=ov?' ov':(es==='today'?' td':(es==='tomorrow'?' sn':''));var dayLbl=ov?'OVR ':(es==='today'?'TODAY ':(es==='tomorrow'?'TMRW ':''));var dc=mk('div','jdays'+dayCls);dc.textContent=dayLbl+(days===0?'0d':days+'d');top.appendChild(dc);}
