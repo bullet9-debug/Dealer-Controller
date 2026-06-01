@@ -398,6 +398,24 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
   .view{display:block!important;padding:0!important;}
   body{background:#fff!important;}
 }
+
+/* ── Admin ─────────────────────────────── */
+#adminModal{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;}
+#adminModal.hide{display:none;}
+.adm-box{background:#fff;border-radius:8px;padding:28px 28px 22px;width:300px;box-shadow:0 8px 32px rgba(0,0,0,0.22);text-align:center;}
+.adm-title{font-size:15px;font-weight:800;color:#1a2b44;margin-bottom:4px;}
+.adm-sub{font-size:12px;color:#6b7c96;margin-bottom:18px;}
+.adm-pin{display:flex;gap:8px;justify-content:center;margin-bottom:14px;}
+.adm-pin input{width:44px;height:52px;font-size:22px;font-weight:800;text-align:center;border:2px solid #d1d9e6;border-radius:6px;color:#1a2b44;background:#f7f8fa;}
+.adm-pin input:focus{outline:none;border-color:#003087;}
+.adm-err{font-size:12px;color:#e74c3c;min-height:16px;margin-bottom:10px;}
+.adm-btns{display:flex;gap:8px;justify-content:center;}
+#adminLockBtn{background:transparent;border:none;cursor:pointer;font-size:18px;padding:2px 6px;line-height:1;color:#6b7c96;flex-shrink:0;}
+#adminLockBtn:hover{color:#003087;}
+#adminLockBtn.unlocked{color:#27ae60;}
+.set-locked{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:#8fa0b8;gap:14px;}
+.set-locked-icon{font-size:48px;}
+.set-locked p{font-size:13px;text-align:center;max-width:260px;}
 </style>
 </head>
 <body>
@@ -424,8 +442,9 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
     <button class="tab" id="tab2" onclick="goTab(2,this)">Retail WIP</button>
     <button class="tab" id="tab3" onclick="goTab(3,this)">Sales / PDI</button>
     <button class="tab" id="tab4" onclick="goTab(4,this)">EOD</button>
-    <button class="tab" id="tab5" onclick="goTab(5,this)">Settings</button>
+    <button class="tab" id="tab5" onclick="adminGoSettings(this)">Settings</button>
   </div>
+  <button id="adminLockBtn" title="Admin login" onclick="toggleAdminLogin()">🔒</button>
   <div class="topstats" id="topStats"></div>
   <div id="syncStatus">Loading...</div>
   <div style="font-size:11px;color:#8fa0b8;" id="todayDate"></div>
@@ -498,6 +517,14 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 
 <!-- SETTINGS -->
 <div class="view" id="v5">
+  <!-- Admin lock overlay — shown when not authenticated -->
+  <div id="setLockOverlay" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:16px;">
+    <div style="font-size:48px;">🔐</div>
+    <p style="font-size:13px;color:#6b7c96;text-align:center;max-width:260px;margin:0;">Settings are admin-only.<br>Log in to make changes.</p>
+    <button class="btn pr" onclick="openAdminModal(function(){applyAdminUI();renderSettings();})">Admin Login</button>
+  </div>
+  <!-- Real settings — hidden until unlocked -->
+  <div id="setContent" style="display:none;">
   <div class="setgrid">
     <div class="setcard"><div class="settitle">Service Advisors</div><div class="setbody" id="advList"></div><div class="addrow"><input class="addinput" id="addAdvIn" placeholder="New advisor..."><button class="addbtn" onclick="addMember('adv')">Add</button></div></div>
     <div class="setcard"><div class="settitle">Technicians</div><div class="setbody" id="techList"></div><div class="addrow"><input class="addinput" id="addTechIn" placeholder="New technician..."><button class="addbtn" onclick="addMember('tech')">Add</button></div></div>
@@ -505,7 +532,9 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
     <div class="setcard"><div class="settitle">DVLA Vehicle Lookup</div><div class="setbody"><p>Enter your DVLA Vehicle Enquiry Service API key. Get a free key at <b>developer-portal.driver-vehicle-licensing.agency.gov.uk</b></p><label class="flbl" style="display:block;margin-bottom:4px;">API Key</label><div style="display:flex;gap:6px;"><input class="addinput" id="dvlaKeyInput" placeholder="Paste your API key..." type="password" style="flex:1;font-family:monospace;"><button class="addbtn" onclick="saveDVLAKey()">Save</button></div><div id="dvlaKeyStatus" style="font-size:11px;margin-top:6px;color:#6b7c96;"></div><button class="btn" style="margin-top:4px;font-size:11px;" onclick="clearDVLACache()">Clear Lookup Cache</button></div></div>
     <div class="setcard"><div class="settitle">Data</div><div class="setbody"><p>Export saves all data to a JSON file. Import restores it.</p><button class="btn gr" onclick="exportData()">Export Data</button><label class="btn" style="cursor:pointer;text-align:center;margin-left:6px;">Import Data<input type="file" accept=".json" id="importFile" style="display:none;" onchange="importData(event)"></label></div></div>
     <div class="setcard"><div class="settitle">Danger Zone</div><div class="setbody"><button class="btn dr" onclick="clearJobs()">Clear All Jobs</button> <button class="btn dr" onclick="clearActions()">Clear Actions</button> <button class="btn dr" onclick="resetAll()" style="margin-top:6px;">Reset Everything</button></div></div>
+    <div class="setcard"><div class="settitle">Admin PIN</div><div class="setbody"><p>Change your 4-digit admin PIN.</p><div style="display:flex;gap:6px;"><input class="addinput" id="newPinIn" placeholder="New 4-digit PIN" type="password" inputmode="numeric" maxlength="4" style="width:140px;letter-spacing:4px;font-weight:800;"><button class="addbtn" onclick="changePin()">Update PIN</button></div></div></div>
   </div>
+  </div><!-- /setContent -->
 </div>
 
 <!-- JOB MODAL (shared, board context switches fields) -->
@@ -1710,6 +1739,15 @@ function buildHandover(){
    SETTINGS
 ═══════════════════════════════════════════ */
 function renderSettings(){
+  var overlay=document.getElementById('setLockOverlay');
+  var content=document.getElementById('setContent');
+  if(!adminUnlocked){
+    if(overlay)overlay.style.display='flex';
+    if(content)content.style.display='none';
+    return;
+  }
+  if(overlay)overlay.style.display='none';
+  if(content)content.style.display='';
   ['adv','tech','sales'].forEach(function(type){
     var listId={'adv':'advList','tech':'techList','sales':'salesList'}[type];
     var listEl=clr(listId);
@@ -1974,6 +2012,117 @@ function bootApp(){
     setTimeout(function(){document.getElementById('pinInput').focus();},100);
   }
 })();
+
+/* ═══════════════════════════════════════════
+   ADMIN / PIN PROTECTION
+═══════════════════════════════════════════ */
+var adminUnlocked = false;
+var ADMIN_PIN_KEY = 'dwc_admin_pin';
+
+function getAdminPin(){
+  return localStorage.getItem(ADMIN_PIN_KEY) || '1234';
+}
+
+function toggleAdminLogin(){
+  if(adminUnlocked){ adminLock(); }
+  else { openAdminModal(); }
+}
+
+function openAdminModal(callback){
+  ['p0','p1','p2','p3'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('pinErr').textContent='';
+  document.getElementById('adminModal').classList.remove('hide');
+  document.getElementById('p0').focus();
+  window._adminCallback = callback||null;
+}
+
+function closeAdminModal(){
+  document.getElementById('adminModal').classList.add('hide');
+  window._adminCallback = null;
+}
+
+function pinInput(idx){
+  var val = document.getElementById('p'+idx).value;
+  if(!/[0-9]/.test(val)){ document.getElementById('p'+idx).value=''; return; }
+  if(idx < 3){ document.getElementById('p'+(idx+1)).focus(); }
+  else { submitPin(); }
+}
+
+function submitPin(){
+  var entered = ['p0','p1','p2','p3'].map(function(id){return document.getElementById(id).value;}).join('');
+  if(entered === getAdminPin()){
+    adminUnlocked = true;
+    document.getElementById('adminModal').classList.add('hide');
+    document.getElementById('adminLockBtn').textContent = '🔓';
+    document.getElementById('adminLockBtn').classList.add('unlocked');
+    document.getElementById('adminLockBtn').title = 'Admin — click to lock';
+    /* show settings tab and re-render if on settings */
+    applyAdminUI();
+    if(window._adminCallback){ window._adminCallback(); window._adminCallback=null; }
+    if(curTab===5) renderSettings();
+  } else {
+    document.getElementById('pinErr').textContent = 'Incorrect PIN — try again';
+    ['p0','p1','p2','p3'].forEach(function(id){document.getElementById(id).value='';});
+    document.getElementById('p0').focus();
+  }
+}
+
+function adminLock(){
+  adminUnlocked = false;
+  document.getElementById('adminLockBtn').textContent = '🔒';
+  document.getElementById('adminLockBtn').classList.remove('unlocked');
+  document.getElementById('adminLockBtn').title = 'Admin login';
+  applyAdminUI();
+  if(curTab===5) renderSettings();
+}
+
+function adminGoSettings(el){
+  goTab(5,el);
+  /* renderSettings handles overlay/content visibility */
+}
+
+function applyAdminUI(){
+  /* Delete button visibility in open modal */
+  var db = document.getElementById('delBtn');
+  if(db && editId){ db.style.display = adminUnlocked ? '' : 'none'; }
+  /* If on settings tab, re-render to show/hide content */
+  if(curTab===5) renderSettings();
+}
+
+/* Change PIN — called from settings */
+function changePin(){
+  var np = (document.getElementById('newPinIn')||{}).value||'';
+  if(!/^[0-9]{4}$/.test(np)){ alert('PIN must be exactly 4 digits.'); return; }
+  localStorage.setItem(ADMIN_PIN_KEY, np);
+  document.getElementById('newPinIn').value='';
+  alert('PIN updated successfully.');
+}
+
+/* keyboard: Enter to submit in PIN modal */
+document.addEventListener('keydown', function(e){
+  if(document.getElementById('adminModal').classList.contains('hide')) return;
+  if(e.key==='Enter') submitPin();
+  if(e.key==='Escape') closeAdminModal();
+});
+
 </script>
+
+<!-- ADMIN LOGIN MODAL -->
+<div id="adminModal" class="hide">
+  <div class="adm-box">
+    <div class="adm-title">🔐 Admin Login</div>
+    <div class="adm-sub">Enter your 4-digit PIN</div>
+    <div class="adm-pin">
+      <input type="password" inputmode="numeric" maxlength="1" id="p0" oninput="pinInput(0)">
+      <input type="password" inputmode="numeric" maxlength="1" id="p1" oninput="pinInput(1)">
+      <input type="password" inputmode="numeric" maxlength="1" id="p2" oninput="pinInput(2)">
+      <input type="password" inputmode="numeric" maxlength="1" id="p3" oninput="pinInput(3)">
+    </div>
+    <div class="adm-err" id="pinErr"></div>
+    <div class="adm-btns">
+      <button class="btn" onclick="closeAdminModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
