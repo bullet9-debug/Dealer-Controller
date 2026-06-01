@@ -135,7 +135,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 .jcard.uo{border-left:4px solid #27ae60;}
 .jcard.ui{border-left:4px solid #003087;}
 .jcard.auto-flagged{box-shadow:0 0 0 2px rgba(231,76,60,0.2);}
-.jcard-top{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
+.jcard-top{display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;}
 .jreg{font-size:15px;font-weight:800;letter-spacing:1px;color:#1a2b44;flex:1;}
 .jurg{font-size:9px;font-weight:800;padding:2px 5px;border-radius:2px;text-transform:uppercase;white-space:nowrap;flex-shrink:0;}
 .jurg.uc{background:rgba(231,76,60,0.1);color:#c0392b;border:1px solid #e74c3c;}
@@ -153,6 +153,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 .cat-recall{background:rgba(230,126,34,0.08);color:#ca6f1e;border:1px solid #e67e22;}
 .cat-warranty{background:rgba(52,152,219,0.08);color:#2471a3;border:1px solid #3498db;}
 .cat-mot{background:rgba(26,188,156,0.08);color:#148f77;border:1px solid #1abc9c;}
+.cat-timing{background:rgba(100,30,180,0.08);color:#6a1fb5;border:1px solid #8e44ad;}
 
 /* Sales categories */
 .cat-pdi{background:rgba(0,48,135,0.08);color:#003087;border:1px solid #003087;}
@@ -695,7 +696,8 @@ var RETAIL_CATS = [
   {id:'tyres',    label:'Tyres/Cons', cls:'cat-tyres'},
   {id:'recall',   label:'Recall',     cls:'cat-recall'},
   {id:'warranty', label:'Warranty',   cls:'cat-warranty'},
-  {id:'mot',      label:'MOT',        cls:'cat-mot'}
+  {id:'mot',      label:'MOT',        cls:'cat-mot'},
+  {id:'timing',   label:'Timing Belt',cls:'cat-timing'}
 ];
 
 /* Sales/PDI types */
@@ -1074,7 +1076,7 @@ function filterRetailJobs(jobs){
   if(srch)jobs=jobs.filter(function(j){return(j.reg&&j.reg.toLowerCase().indexOf(srch)!==-1)||(j.veh&&j.veh.toLowerCase().indexOf(srch)!==-1)||(j.wipNo&&j.wipNo.toLowerCase().indexOf(srch)!==-1);});
   if(fs)jobs=jobs.filter(function(j){return j.stage===fs;});
   if(fu)jobs=jobs.filter(function(j){return scoreRetail(j).lv===fu;});
-  if(fc)jobs=jobs.filter(function(j){return j.repCat===fc;});
+  if(fc)jobs=jobs.filter(function(j){var cats=j.repCats&&j.repCats.length?j.repCats:(j.repCat?[j.repCat]:[]);return cats.indexOf(fc)!==-1;});
   return jobs;
 }
 function sortRetailJobs(jobs){
@@ -1125,9 +1127,9 @@ function makeRetailCard(job){
   var reg=mk('div','jreg');reg.textContent=job.reg||'?';
   if(job.wipNo){var wipB=mk('span');wipB.style.cssText='font-size:10px;font-weight:700;color:#6b7c96;margin-left:4px;';wipB.textContent='#'+job.wipNo;reg.appendChild(wipB);}
   var ub=mk('div','jurg '+uc[urg.lv]);ub.textContent=urg.why;
-  var catDef=job.repCat?RETAIL_CATS.filter(function(c){return c.id===job.repCat;})[0]:null;
-  var catB=mk('div','jcat '+(catDef?catDef.cls:'cat-none'));catB.textContent=catDef?catDef.label:'?';
-  app(top,reg,ub,catB);
+  var catDefs=(job.repCats&&job.repCats.length?job.repCats:(job.repCat?[job.repCat]:[])).map(function(id){return RETAIL_CATS.find(function(c){return c.id===id;});}).filter(Boolean);
+  if(catDefs.length){catDefs.forEach(function(cd){var catB=mk('div','jcat '+cd.cls);catB.textContent=cd.label;top.appendChild(catB);});}else{var catB=mk('div','jcat cat-none');catB.textContent='?';top.appendChild(catB);}
+  app(top,reg,ub);
   if(days!==null){var dayCls=ov?' ov':(es==='today'?' td':(es==='tomorrow'?' sn':''));var dayLbl=ov?'OVR ':(es==='today'?'TODAY ':(es==='tomorrow'?'TMRW ':''));var dc=mk('div','jdays'+dayCls);dc.textContent=dayLbl+(days===0?'0d':days+'d');top.appendChild(dc);}
   var row2=mk('div','jrow2');
   var veh=mk('div','jveh');veh.textContent=job.veh||'';
@@ -1167,7 +1169,7 @@ function filterSalesJobs(jobs){
   if(!srch&&fs!=='handover')jobs=jobs.filter(function(j){if(j.stage!=='handover')return true;var rd=j.readyDate?Math.floor((Date.now()-new Date(j.readyDate))/86400000):0;return rd<45;});
   if(srch)jobs=jobs.filter(function(j){return(j.reg&&j.reg.toLowerCase().indexOf(srch)!==-1)||(j.veh&&j.veh.toLowerCase().indexOf(srch)!==-1)||(j.wipNo&&j.wipNo.toLowerCase().indexOf(srch)!==-1);});
   if(fs)jobs=jobs.filter(function(j){return j.stage===fs;});
-  if(fc)jobs=jobs.filter(function(j){return j.repCat===fc;});
+  if(fc)jobs=jobs.filter(function(j){var cats=j.repCats&&j.repCats.length?j.repCats:(j.repCat?[j.repCat]:[]);return cats.indexOf(fc)!==-1;});
   return jobs;
 }
 function sortSalesJobs(jobs){
@@ -1216,9 +1218,9 @@ function makeSalesCard(job){
   var reg=mk('div','jreg');reg.textContent=job.reg||'?';
   if(job.wipNo){var wipB2=mk('span');wipB2.style.cssText='font-size:10px;font-weight:700;color:#6b7c96;margin-left:4px;';wipB2.textContent='#'+job.wipNo;reg.appendChild(wipB2);}
   var ub=mk('div','jurg '+uc[urg.lv]);ub.textContent=urg.why;
-  var catDef=job.repCat?SALES_CATS.filter(function(c){return c.id===job.repCat;})[0]:null;
-  var catB=mk('div','jcat '+(catDef?catDef.cls:'cat-none'));catB.textContent=catDef?catDef.label:'PDI';
-  app(top,reg,ub,catB);
+  var catDefs2=(job.repCats&&job.repCats.length?job.repCats:(job.repCat?[job.repCat]:[])).map(function(id){return SALES_CATS.find(function(c){return c.id===id;});}).filter(Boolean);
+  if(catDefs2.length){catDefs2.forEach(function(cd){var catB=mk('div','jcat '+cd.cls);catB.textContent=cd.label;top.appendChild(catB);});}else{var catB=mk('div','jcat cat-none');catB.textContent='PDI';top.appendChild(catB);}
+  app(top,reg,ub);
   if(days!==null){var dayCls=ov?' ov':(es==='today'?' td':(es==='tomorrow'?' sn':''));var dayLbl=ov?'OVR ':(es==='today'?'TODAY ':(es==='tomorrow'?'TMRW ':''));var dc=mk('div','jdays'+dayCls);dc.textContent=dayLbl+(days===0?'0d':days+'d');top.appendChild(dc);}
   var row2=mk('div','jrow2');
   var veh=mk('div','jveh');veh.textContent=job.veh||'';
@@ -1244,7 +1246,7 @@ function makeSalesCard(job){
 /* ═══════════════════════════════════════════
    MODAL — JOB ADD/EDIT
 ═══════════════════════════════════════════ */
-var editId=null, editBoard=null, modalStage='', modalCat='';
+var editId=null, editBoard=null, modalStage='', modalCats=[];
 
 function setModalBoard(board){
   editBoard=board;
@@ -1279,10 +1281,15 @@ function setModalBoard(board){
   /* Category selector */
   var cats=board==='retail'?RETAIL_CATS:SALES_CATS;
   var crow=board==='retail'?clr('catSelRow'):clr('catSelRowS');
-  if(!modalCat||!cats.find(function(c){return c.id===modalCat;}))modalCat='';
+  /* Sanitise modalCats — remove any ids not in this board's cat list */
+  modalCats=modalCats.filter(function(id){return cats.find(function(c){return c.id===id;});});
   cats.forEach(function(cat){
-    var b=mk('button','sselbtn'+(modalCat===cat.id?' on':''));b.textContent=cat.label;b.style.fontSize='11px';
-    b.addEventListener('click',function(){modalCat=modalCat===cat.id?'':cat.id;crow.querySelectorAll('.sselbtn').forEach(function(x){x.classList.remove('on');});if(modalCat)b.classList.add('on');});
+    var b=mk('button','sselbtn'+(modalCats.indexOf(cat.id)!==-1?' on':''));b.textContent=cat.label;b.style.fontSize='11px';
+    b.addEventListener('click',function(){
+      var idx=modalCats.indexOf(cat.id);
+      if(idx===-1){modalCats.push(cat.id);b.classList.add('on');}
+      else{modalCats.splice(idx,1);b.classList.remove('on');}
+    });
     crow.appendChild(b);
   });
   /* Populate dropdowns */
@@ -1336,15 +1343,19 @@ function fillJobData(job){
     if(st&&st.id===modalStage){b.className=editBoard==='retail'?'sselbtn on':'sselbtn spr-on';}
     else b.className='sselbtn';
   });
-  /* highlight active cat button */
+  /* highlight active cat buttons */
   var crow=editBoard==='retail'?document.getElementById('catSelRow'):document.getElementById('catSelRowS');
-  if(crow)crow.querySelectorAll('.sselbtn').forEach(function(b){var mc=(editBoard==='retail'?RETAIL_CATS:SALES_CATS).filter(function(c){return c.id===modalCat;})[0];b.classList.toggle('on',mc&&b.textContent===mc.label);});
+  if(crow)crow.querySelectorAll('.sselbtn').forEach(function(b){
+    var cats=editBoard==='retail'?RETAIL_CATS:SALES_CATS;
+    var cat=cats.find(function(c){return c.label===b.textContent;});
+    b.classList.toggle('on',!!(cat&&modalCats.indexOf(cat.id)!==-1));
+  });
   var hasDetail=job.notes||job.labHrs||job.value||job.authRef||job.salesId||job.handoverDate;
   if(hasDetail){document.getElementById('expandBody').classList.add('open');document.getElementById('expandToggle').classList.add('open');}
 }
 
 function openAddRetail(){
-  editId=null;modalStage='booking';modalCat='';
+  editId=null;modalStage='booking';modalCats=[];
   clearModal();setModalBoard('retail');
   document.getElementById('mTitle').textContent='Add Retail Job';
   document.getElementById('delBtn').style.display='none';
@@ -1352,7 +1363,7 @@ function openAddRetail(){
   document.getElementById('jobModal').classList.add('op');
 }
 function openAddSales(){
-  editId=null;modalStage='allocated';modalCat='';
+  editId=null;modalStage='allocated';modalCats=[];
   clearModal();setModalBoard('sales');
   document.getElementById('mTitle').textContent='Add PDI / Sales Job';
   document.getElementById('delBtn').style.display='none';
@@ -1361,7 +1372,7 @@ function openAddSales(){
 }
 function openEditRetail(id){
   var job=S.retailJobs.find(function(j){return j.id===id;});if(!job)return;
-  editId=id;modalStage=job.stage;modalCat=job.repCat||'';
+  editId=id;modalStage=job.stage;modalCats=job.repCats?job.repCats.slice():(job.repCat?[job.repCat]:[]);
   clearModal();setModalBoard('retail');fillJobData(job);
   document.getElementById('mTitle').textContent='Edit Retail Job';
   document.getElementById('delBtn').style.display='';
@@ -1370,7 +1381,7 @@ function openEditRetail(id){
 }
 function openEditSales(id){
   var job=S.salesJobs.find(function(j){return j.id===id;});if(!job)return;
-  editId=id;modalStage=job.stage;modalCat=job.repCat||'';
+  editId=id;modalStage=job.stage;modalCats=job.repCats?job.repCats.slice():(job.repCat?[job.repCat]:[]);
   clearModal();setModalBoard('sales');fillJobData(job);
   document.getElementById('mTitle').textContent='Edit PDI / Sales Job';
   document.getElementById('delBtn').style.display='';
@@ -1396,7 +1407,7 @@ document.getElementById('saveBtn').addEventListener('click',function(){
     veh:document.getElementById('fVeh').value.trim(),
     wipNo:document.getElementById('fWipNo').value.trim(),
     stage:modalStage,
-    repCat:modalCat,
+    repCats:modalCats.slice(),
     notes:document.getElementById('fNotes').value.trim(),
     dateIn:dpToIso('fDateIn'),
     eta:dpToIso('fEta'),
