@@ -416,6 +416,35 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 .set-locked{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:#8fa0b8;gap:14px;}
 .set-locked-icon{font-size:48px;}
 .set-locked p{font-size:13px;text-align:center;max-width:260px;}
+
+/* ── Tech login ─────────────────────────────── */
+#techLoginModal{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9998;display:none;align-items:center;justify-content:center;}
+#techLoginModal.show{display:flex;}
+.tl-box{background:#fff;border-radius:10px;padding:28px 28px 22px;width:320px;box-shadow:0 8px 32px rgba(0,0,0,0.25);}
+.tl-title{font-size:15px;font-weight:800;color:#1a2b44;margin-bottom:2px;}
+.tl-sub{font-size:12px;color:#6b7c96;margin-bottom:16px;}
+.tl-label{font-size:11px;font-weight:700;color:#4a5f7a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;}
+.tl-select{width:100%;background:#f7f8fa;border:1px solid #d1d9e6;border-radius:4px;font-size:13px;padding:8px 10px;color:#1a2b44;margin-bottom:14px;}
+.tl-select:focus{outline:none;border-color:#003087;}
+.tl-pin{display:flex;gap:8px;justify-content:center;margin-bottom:10px;}
+.tl-pin input{width:44px;height:52px;font-size:22px;font-weight:800;text-align:center;border:2px solid #d1d9e6;border-radius:6px;color:#1a2b44;background:#f7f8fa;}
+.tl-pin input:focus{outline:none;border-color:#003087;}
+.tl-err{font-size:12px;color:#e74c3c;min-height:16px;margin-bottom:10px;text-align:center;}
+.tl-btns{display:flex;gap:8px;}
+/* current user badge in topbar */
+#userBadge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:3px;background:rgba(0,48,135,0.1);color:#003087;white-space:nowrap;cursor:pointer;flex-shrink:0;}
+#userBadge.tech-badge{background:rgba(39,174,96,0.12);color:#1e8449;}
+/* tech stage modal */
+#techStageModal{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9000;display:none;align-items:center;justify-content:center;}
+#techStageModal.show{display:flex;}
+.tsm-box{background:#fff;border-radius:10px;padding:24px;width:300px;box-shadow:0 8px 32px rgba(0,0,0,0.2);}
+.tsm-reg{font-size:22px;font-weight:900;letter-spacing:2px;color:#003087;margin-bottom:2px;}
+.tsm-veh{font-size:12px;color:#6b7c96;margin-bottom:14px;}
+.tsm-label{font-size:11px;font-weight:700;color:#4a5f7a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+.tsm-stages{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+.tsm-stage-btn{padding:10px 14px;border-radius:5px;border:2px solid #d1d9e6;background:#f7f8fa;font-size:13px;font-weight:700;color:#1a2b44;cursor:pointer;text-align:left;}
+.tsm-stage-btn.active{border-color:#003087;background:rgba(0,48,135,0.07);color:#003087;}
+.tsm-stage-btn:hover:not(.active){border-color:#8fa0b8;}
 </style>
 </head>
 <body>
@@ -423,12 +452,22 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 <!-- PIN GATE -->
 <div id="pinOverlay">
   <div class="pin-logo">Dealer Workshop Controller</div>
-  <div class="pin-box">
+  <div class="pin-box" id="roleBox">
     <h2>Workshop Access</h2>
-    <p>Enter your PIN to continue</p>
+    <p>Select your role to continue</p>
+    <button id="pinEnter" onclick="showAdminPinBox()" style="margin-bottom:8px;">🔐 Admin</button>
+    <button id="pinEnter" style="background:#1a5276;margin-bottom:8px;" onclick="showRoleLoginFromGate('adv')">📋 Service Advisor</button>
+    <button id="pinEnter" style="background:#1e8449;margin-bottom:8px;" onclick="showRoleLoginFromGate('sales')">🚗 Sales</button>
+    <button id="pinEnter" style="background:#6c3483;" onclick="showTechLoginFromGate()">🔧 Technician</button>
+    <div id="pinError"></div>
+  </div>
+  <div class="pin-box" id="adminPinBox" style="display:none;">
+    <h2>Admin Login</h2>
+    <p>Enter your admin PIN</p>
     <input type="password" id="pinInput" placeholder="••••" maxlength="6" inputmode="numeric" onkeydown="if(event.key==='Enter')checkPin()">
     <button id="pinEnter" onclick="checkPin()">Enter</button>
-    <div id="pinError"></div>
+    <div id="pinError2"></div>
+    <button onclick="showRoleBox()" style="background:transparent;color:#6b7c96;border:none;font-size:12px;margin-top:8px;cursor:pointer;">← Back</button>
   </div>
 </div>
 
@@ -445,6 +484,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
     <button class="tab" id="tab5" onclick="adminGoSettings(this)">Settings</button>
   </div>
   <button id="adminLockBtn" title="Admin login" onclick="toggleAdminLogin()">🔒</button>
+  <div id="userBadge" style="display:none;" onclick="promptUserSwitch()"></div>
   <div class="topstats" id="topStats"></div>
   <div id="syncStatus">Loading...</div>
   <div style="font-size:11px;color:#8fa0b8;" id="todayDate"></div>
@@ -487,7 +527,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
       <option value="days">Sort: Days In</option>
       <option value="reg">Sort: Reg</option>
     </select>
-    <button class="btn pr" onclick="openAddRetail()">+ Add Job <span class="kb-hint">N</span></button>
+    <button class="btn pr" onclick="openAddRetail()" id="addRetailBtn">+ Add Job <span class="kb-hint">N</span></button>
   </div>
   <div class="urgency-strip" id="urgStripR"></div>
   <div id="wipListR"></div>
@@ -507,7 +547,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
       <option value="days">Sort: Days In</option>
       <option value="reg">Sort: Reg</option>
     </select>
-    <button class="btn spr" onclick="openAddSales()">+ Add PDI Job</button>
+    <button class="btn spr" onclick="openAddSales()" id="addSalesBtn">+ Add PDI Job</button>
   </div>
   <div id="wipListS"></div>
 </div>
@@ -526,8 +566,8 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
   <!-- Real settings — hidden until unlocked -->
   <div id="setContent" style="display:none;">
   <div class="setgrid">
-    <div class="setcard"><div class="settitle">Service Advisors</div><div class="setbody" id="advList"></div><div class="addrow"><input class="addinput" id="addAdvIn" placeholder="New advisor..."><button class="addbtn" onclick="addMember('adv')">Add</button></div></div>
-    <div class="setcard"><div class="settitle">Technicians</div><div class="setbody" id="techList"></div><div class="addrow"><input class="addinput" id="addTechIn" placeholder="New technician..."><button class="addbtn" onclick="addMember('tech')">Add</button></div></div>
+    <div class="setcard"><div class="settitle">Service Advisors</div><div class="setbody" id="advList"></div><div class="addrow"><input class="addinput" id="addAdvIn" placeholder="New advisor..." style="flex:2"><input class="addinput" id="addAdvPin" placeholder="PIN (4 digits)" maxlength="4" inputmode="numeric" style="width:110px;letter-spacing:3px;" type="password"><button class="addbtn" onclick="addMemberRole('adv')">Add</button></div></div>
+    <div class="setcard"><div class="settitle">Technicians</div><div class="setbody" id="techList"></div><div class="addrow"><input class="addinput" id="addTechIn" placeholder="New technician..." style="flex:2"><input class="addinput" id="addTechPin" placeholder="PIN (4 digits)" maxlength="4" inputmode="numeric" style="width:110px;letter-spacing:3px;" type="password"><button class="addbtn" onclick="addMemberTech()">Add</button></div></div>
     <div class="setcard"><div class="settitle">Sales Executives</div><div class="setbody" id="salesList"></div><div class="addrow"><input class="addinput" id="addSalesIn" placeholder="New sales exec..."><button class="addbtn" onclick="addMember('sales')">Add</button></div></div>
     <div class="setcard"><div class="settitle">DVLA Vehicle Lookup</div><div class="setbody"><p>Enter your DVLA Vehicle Enquiry Service API key. Get a free key at <b>developer-portal.driver-vehicle-licensing.agency.gov.uk</b></p><label class="flbl" style="display:block;margin-bottom:4px;">API Key</label><div style="display:flex;gap:6px;"><input class="addinput" id="dvlaKeyInput" placeholder="Paste your API key..." type="password" style="flex:1;font-family:monospace;"><button class="addbtn" onclick="saveDVLAKey()">Save</button></div><div id="dvlaKeyStatus" style="font-size:11px;margin-top:6px;color:#6b7c96;"></div><button class="btn" style="margin-top:4px;font-size:11px;" onclick="clearDVLACache()">Clear Lookup Cache</button></div></div>
     <div class="setcard"><div class="settitle">Data</div><div class="setbody"><p>Export saves all data to a JSON file. Import restores it.</p><button class="btn gr" onclick="exportData()">Export Data</button><label class="btn" style="cursor:pointer;text-align:center;margin-left:6px;">Import Data<input type="file" accept=".json" id="importFile" style="display:none;" onchange="importData(event)"></label></div></div>
@@ -790,9 +830,9 @@ function defState(){
     salesJobs: [],
     actions: [],
     set: {
-      adv:   [{id:'a1',name:'Advisor 1'},{id:'a2',name:'Advisor 2'},{id:'a3',name:'Advisor 3'}],
-      tech:  [{id:'t1',name:'Tech 1'},{id:'t2',name:'Tech 2'},{id:'t3',name:'Tech 3'},{id:'t4',name:'Tech 4'},{id:'t5',name:'Tech 5'},{id:'t6',name:'Tech 6'}],
-      sales: [{id:'s1',name:'Sales Exec 1'},{id:'s2',name:'Sales Exec 2'}],
+      adv:   [{id:'a1',name:'Paul',pin:''},{id:'a2',name:'Joe',pin:''},{id:'a3',name:'Oliver',pin:''}],
+      tech:  [{id:'t1',name:'Tech 1',pin:''},{id:'t2',name:'Tech 2',pin:''},{id:'t3',name:'Tech 3',pin:''},{id:'t4',name:'Tech 4',pin:''},{id:'t5',name:'Tech 5',pin:''},{id:'t6',name:'Tech 6',pin:''}],
+      sales: [{id:'s1',name:'James',pin:''},{id:'s2',name:'Daniel',pin:''}],
       adminPin: '1234'
     }
   };
@@ -804,12 +844,17 @@ var S = defState();
 
 function applyState(data){
   S=data;
+  setTimeout(onStateReady,0);
   if(!S.set)S.set=defState().set;
   if(!S.actions)S.actions=[];
   if(!S.set.adv)S.set.adv=defState().set.adv;
   if(!S.set.tech)S.set.tech=defState().set.tech;
   if(!S.set.sales)S.set.sales=defState().set.sales;
   if(!S.set.adminPin)S.set.adminPin=localStorage.getItem('dwc_admin_pin')||'1234';
+  (S.set.tech||[]).forEach(function(t){if(!t.pin)t.pin='';});
+  (S.set.adv||[]).forEach(function(t){if(!t.pin)t.pin='';});
+  (S.set.sales||[]).forEach(function(t){if(!t.pin)t.pin='';});
+  if(S.set.tech)S.set.tech.forEach(function(t){if(!t.pin)t.pin='';});
   if(!S.brief.signOffTime)S.brief.signOffTime=null;
   if(!S.brief.openedAt)S.brief.openedAt=null;
   if(!S.retailJobs)S.retailJobs=[];
@@ -1110,6 +1155,7 @@ function filterRetailJobs(jobs){
   if(fs)jobs=jobs.filter(function(j){return j.stage===fs;});
   if(fu)jobs=jobs.filter(function(j){return scoreRetail(j).lv===fu;});
   if(fc)jobs=jobs.filter(function(j){var cats=j.repCats&&j.repCats.length?j.repCats:(j.repCat?[j.repCat]:[]);return cats.indexOf(fc)!==-1;});
+  if(isTechView())jobs=jobs.filter(function(j){return j.techId===currentUser.techId;});
   return jobs;
 }
 function sortRetailJobs(jobs){
@@ -1189,7 +1235,7 @@ function makeRetailCard(job){
   if(job.eta){var etaD=mk('div','jcom-i');etaD.textContent='Promised: '+fmtDate(job.eta);detail.appendChild(etaD);}
   if(job.notes){var nd=mk('div','jnotes');nd.textContent=job.notes.slice(0,80)+(job.notes.length>80?'…':'');detail.appendChild(nd);}
   app(card,top,row2,dvlaRow,flagRow,detail);
-  card.addEventListener('click',function(){openEditRetail(job.id);});
+  card.addEventListener('click',function(){if(isTechView()){openTechStageModal(job.id,'retail');}else{openEditRetail(job.id);}});
   return card;
 }
 
@@ -1205,6 +1251,7 @@ function filterSalesJobs(jobs){
   if(srch)jobs=jobs.filter(function(j){return(j.reg&&j.reg.toLowerCase().indexOf(srch)!==-1)||([j.make,j.model,j.colour,j.veh].filter(Boolean).join(' ').toLowerCase().indexOf(srch)!==-1)||(j.wipNo&&j.wipNo.toLowerCase().indexOf(srch)!==-1);});
   if(fs)jobs=jobs.filter(function(j){return j.stage===fs;});
   if(fc)jobs=jobs.filter(function(j){var cats=j.repCats&&j.repCats.length?j.repCats:(j.repCat?[j.repCat]:[]);return cats.indexOf(fc)!==-1;});
+  if(isTechView())jobs=jobs.filter(function(j){return j.techId===currentUser.techId;});
   return jobs;
 }
 function sortSalesJobs(jobs){
@@ -1276,7 +1323,7 @@ function makeSalesCard(job){
   if(job.handoverDate){var hd=mk('div','jcom-i');hd.textContent='H/O Date: '+fmtDate(job.handoverDate);detail.appendChild(hd);}
   if(job.notes){var nd=mk('div','jnotes');nd.textContent=job.notes.slice(0,80)+(job.notes.length>80?'…':'');detail.appendChild(nd);}
   app(card,top,row2,dvlaRow2,detail);
-  card.addEventListener('click',function(){openEditSales(job.id);});
+  card.addEventListener('click',function(){if(isTechView()){openTechStageModal(job.id,'sales');}else{openEditSales(job.id);}});
   return card;
 }
 
@@ -1638,6 +1685,67 @@ function renderEOD(){
     rInsights.forEach(function(i){var d=mk('div','eod-insight-item');d.textContent='— '+i;ri.appendChild(d);});container.appendChild(ri);
   }
 
+
+  /* ── Tech Hours Breakdown ── */
+  var techHdrDiv=mk('div','eod-section-hdr retail');techHdrDiv.textContent='Technician Hours';techHdrDiv.style.background='#1a5276';container.appendChild(techHdrDiv);
+
+  var techJobs = S.retailJobs; // all retail jobs
+  var techMap = {};
+  // build map: techId -> {name, jobs:[]}
+  (S.set.tech||[]).forEach(function(t){
+    techMap[t.id]={name:t.name, jobs:[]};
+  });
+  // bucket jobs by tech
+  techJobs.forEach(function(j){
+    if(j.techId && techMap[j.techId]){
+      techMap[j.techId].jobs.push(j);
+    }
+  });
+
+  var techIds = Object.keys(techMap);
+  var anyTech = false;
+  techIds.forEach(function(tid){
+    var entry = techMap[tid];
+    if(!entry.jobs.length) return;
+    anyTech = true;
+    var totalHrs = entry.jobs.reduce(function(a,j){return a+(parseFloat(j.labHrs)||0);},0);
+
+    // tech name header row
+    var tHdr=mk('div','eod-stitle');
+    tHdr.innerHTML='🔧 <strong>'+entry.name+'</strong> &mdash; <span style="color:#1a5276;">'+totalHrs.toFixed(1)+' hrs total</span>';
+    container.appendChild(tHdr);
+
+    // per-job rows
+    var ul=mk('div','eod-list');
+    entry.jobs.forEach(function(j){
+      var row=mk('div','eod-row');
+      var wipEl=mk('div','eod-reg');wipEl.textContent=j.wipNo?'WIP '+j.wipNo:(j.reg||'?');
+      wipEl.style.minWidth='80px';
+
+      var regEl=mk('span','');
+      regEl.style.cssText='font-size:11px;font-weight:700;color:#6b7c96;margin-right:6px;';
+      if(j.wipNo)regEl.textContent=j.reg||'';
+
+      var vm=[j.make,j.model].filter(Boolean).join(' ')||j.veh||'';
+      var infoEl=mk('div','eod-info');
+      infoEl.textContent=vm+(j.colour?' · '+j.colour:'');
+
+      var hrs=parseFloat(j.labHrs)||0;
+      var hrsEl=mk('div','eod-sb');
+      hrsEl.textContent=hrs.toFixed(1)+' hrs';
+      hrsEl.style.cssText='background:rgba(26,82,118,0.1);color:#1a5276;border:1px solid #1a5276;min-width:52px;text-align:center;';
+
+      app(row,wipEl,regEl,infoEl,hrsEl);ul.appendChild(row);
+    });
+    container.appendChild(ul);
+  });
+
+  if(!anyTech){
+    var noTech=mk('div','eod-insight');noTech.style.cssText='color:#8fa0b8;font-size:12px;padding:10px 14px;';
+    noTech.textContent='No technician hours logged yet for today.';
+    container.appendChild(noTech);
+  }
+
   /* Sales section header */
   var sHdr=mk('div','eod-section-hdr sales');sHdr.textContent='Sales / PDI';sHdr.style.marginTop='18px';container.appendChild(sHdr);
 
@@ -1757,9 +1865,22 @@ function renderSettings(){
     var ul=mk('div','memblist');
     listData.forEach(function(m,i){
       var row=mk('div','memb');var sp=mk('span');sp.textContent=m.name;
+      // PIN badge
+      var pinLbl=mk('span','');pinLbl.style.cssText='font-size:10px;color:#8fa0b8;flex:none;';pinLbl.textContent=m.pin?'PIN ✓':'No PIN';
+      // PIN input + save
+      var pinIn=mk('input','addinput');pinIn.type='password';pinIn.placeholder='Set PIN';
+      pinIn.maxLength=4;pinIn.inputMode='numeric';pinIn.style.cssText='width:80px;letter-spacing:3px;font-size:12px;padding:3px 6px;';
+      var pinBtn=mk('button','addbtn');pinBtn.textContent='Save';pinBtn.style.fontSize='11px';pinBtn.style.padding='3px 7px';
+      (function(member,lbl){
+        pinBtn.addEventListener('click',function(){
+          var v=pinIn.value.trim();
+          if(!/^[0-9]{4}$/.test(v)){alert('PIN must be exactly 4 digits.');return;}
+          member.pin=v;lbl.textContent='PIN ✓';pinIn.value='';save();
+        });
+      })(m,pinLbl);
       var del=mk('button');del.textContent='✕';
       del.addEventListener('click',function(){S.set[type].splice(i,1);save();renderSettings();});
-      app(row,sp,del);ul.appendChild(row);
+      app(row,sp,pinLbl,pinIn,pinBtn,del);ul.appendChild(row);
     });
     listEl.appendChild(ul);
   });
@@ -1984,13 +2105,49 @@ function populateDVLAResult(data,fromCache){
    PIN GATE
 ═══════════════════════════════════════════ */
 var WORKSHOP_PIN='1234';
+function showRoleBox(){
+  document.getElementById('roleBox').style.display='';
+  document.getElementById('adminPinBox').style.display='none';
+  var e=document.getElementById('pinError2');if(e)e.textContent='';
+}
+function showAdminPinBox(){
+  document.getElementById('roleBox').style.display='none';
+  document.getElementById('adminPinBox').style.display='';
+  document.getElementById('pinInput').value='';
+  setTimeout(function(){document.getElementById('pinInput').focus();},100);
+}
+function showRoleLoginFromGate(role){
+  bootApp();
+  var attempts=0;
+  var wait=setInterval(function(){
+    attempts++;
+    if(attempts>40){clearInterval(wait);return;}
+    if(S&&S.set){
+      clearInterval(wait);
+      openTechLogin(role);
+    }
+  },150);
+}
+function showTechLoginFromGate(){
+  /* boot the app first (no admin rights), then show tech login */
+  sessionStorage.setItem('dwc_auth','1');
+  bootApp();
+  openTechLogin();
+}
 function checkPin(){
   var entered=document.getElementById('pinInput').value;
-  if(entered===WORKSHOP_PIN){
+  var adminPin=(S&&S.set&&S.set.adminPin)||localStorage.getItem('dwc_admin_pin')||'1234';
+  if(entered===adminPin){
     sessionStorage.setItem('dwc_auth','1');
+    currentUser={type:'admin'};
+    sessionStorage.setItem('dwc_user',JSON.stringify(currentUser));
+    adminUnlocked=true;
+    document.getElementById('adminLockBtn').textContent='🔓';
+    document.getElementById('adminLockBtn').classList.add('unlocked');
     bootApp();
   }else{
-    var err=document.getElementById('pinError');err.textContent='Incorrect PIN — try again';
+    var err=document.getElementById('pinError2')||document.getElementById('pinError');
+    err.textContent='Incorrect PIN — try again';
     document.getElementById('pinInput').value='';document.getElementById('pinInput').focus();
     setTimeout(function(){err.textContent='';},2500);
   }
@@ -2005,12 +2162,47 @@ function bootApp(){
   bindModalEvents();
   loadFromSupabase();
 }
+function startAdminLogin(){
+  // hide overlay, boot app, then prompt admin PIN
+  bootApp();
+  // wait for state to load then open admin modal
+  var attempts=0;
+  var wait=setInterval(function(){
+    attempts++;
+    if(attempts>40){clearInterval(wait);return;}
+    // S loaded when retailJobs array exists
+    if(S&&S.set){
+      clearInterval(wait);
+      openAdminModal(function(){
+        currentUser={type:'admin'};
+        sessionStorage.setItem('dwc_user',JSON.stringify(currentUser));
+        applyUserUI();
+      });
+    }
+  },150);
+}
+function startTechLogin(){
+  bootApp();
+  var attempts=0;
+  var wait=setInterval(function(){
+    attempts++;
+    if(attempts>40){clearInterval(wait);return;}
+    if(S&&S.set&&S.set.tech){
+      clearInterval(wait);
+      openTechLogin();
+    }
+  },150);
+}
+/* called after state loads so tech list is available */
+function onStateReady(){
+  restoreSession();
+  applyAdminUI();
+}
 (function(){
   if(sessionStorage.getItem('dwc_auth')==='1'){
     bootApp();
   }else{
     document.getElementById('pinOverlay').style.display='flex';
-    setTimeout(function(){document.getElementById('pinInput').focus();},100);
   }
 })();
 
@@ -2025,7 +2217,12 @@ function getAdminPin(){
 
 function toggleAdminLogin(){
   if(adminUnlocked){ adminLock(); }
-  else { openAdminModal(); }
+  else {
+    // show choice: admin pin or tech login
+    var choice = confirm('Log in as Admin?\n\nPress OK for Admin PIN, Cancel to log in as a Technician.');
+    if(choice) openAdminModal();
+    else openTechLogin();
+  }
 }
 
 function openAdminModal(callback){
@@ -2052,12 +2249,15 @@ function submitPin(){
   var entered = ['p0','p1','p2','p3'].map(function(id){return document.getElementById(id).value;}).join('');
   if(entered === getAdminPin()){
     adminUnlocked = true;
+    currentUser = {type:'admin'};
+    sessionStorage.setItem('dwc_user', JSON.stringify(currentUser));
     document.getElementById('adminModal').classList.add('hide');
     document.getElementById('adminLockBtn').textContent = '🔓';
     document.getElementById('adminLockBtn').classList.add('unlocked');
     document.getElementById('adminLockBtn').title = 'Admin — click to lock';
     /* show settings tab and re-render if on settings */
     applyAdminUI();
+    applyUserUI();
     if(window._adminCallback){ window._adminCallback(); window._adminCallback=null; }
     if(curTab===5) renderSettings();
   } else {
@@ -2069,10 +2269,13 @@ function submitPin(){
 
 function adminLock(){
   adminUnlocked = false;
+  currentUser = null;
+  sessionStorage.removeItem('dwc_user');
   document.getElementById('adminLockBtn').textContent = '🔒';
   document.getElementById('adminLockBtn').classList.remove('unlocked');
   document.getElementById('adminLockBtn').title = 'Admin login';
   applyAdminUI();
+  applyUserUI();
   if(curTab===5) renderSettings();
 }
 
@@ -2106,6 +2309,241 @@ document.addEventListener('keydown', function(e){
   if(e.key==='Escape') closeAdminModal();
 });
 
+
+/* ═══════════════════════════════════════════
+   USER / TECH LOGIN SYSTEM
+═══════════════════════════════════════════ */
+var currentUser = null; // null=nobody, {type:'admin'} or {type:'tech',techId,name}
+
+/* ── Boot: restore session ── */
+function restoreSession(){
+  var saved = sessionStorage.getItem('dwc_user');
+  if(saved){ try{ currentUser = JSON.parse(saved); }catch(e){} }
+  if(currentUser && currentUser.type==='admin'){
+    adminUnlocked=true;
+    document.getElementById('adminLockBtn').textContent='🔓';
+    document.getElementById('adminLockBtn').classList.add('unlocked');
+  }
+  applyUserUI();
+}
+
+/* ── Apply UI state for current user ── */
+function applyUserUI(){
+  var badge = document.getElementById('userBadge');
+  var tabs = ['tab0','tab1','tab2','tab3','tab4','tab5'];
+  if(!currentUser){
+    if(badge){ badge.style.display='none'; badge.textContent=''; }
+    tabs.forEach(function(id){ var t=document.getElementById(id); if(t)t.style.display=''; });
+    return;
+  }
+  if(currentUser.type==='admin'){
+    if(badge){ badge.style.display=''; badge.textContent='Admin'; badge.className=''; }
+    tabs.forEach(function(id){ var t=document.getElementById(id); if(t)t.style.display=''; });
+  } else if(currentUser.type==='adv'){
+    // service advisor — retail WIP + sales/PDI + chase, no settings, no delete
+    if(badge){ badge.style.display=''; badge.textContent='📋 '+currentUser.name; badge.className='tech-badge'; badge.style.background='rgba(26,82,118,0.12)'; badge.style.color='#1a5276'; }
+    var advAllowed=['tab1','tab2','tab3'];
+    tabs.forEach(function(id){
+      var t=document.getElementById(id);if(!t)return;
+      t.style.display=advAllowed.indexOf(id)!==-1?'':'none';
+    });
+    if(['tab0','tab4','tab5'].indexOf('tab'+curTab)!==-1) goTab(2,document.getElementById('tab2'));
+  } else if(currentUser.type==='sales'){
+    // sales — sales/PDI only, no delete
+    if(badge){ badge.style.display=''; badge.textContent='🚗 '+currentUser.name; badge.className='tech-badge'; badge.style.background='rgba(30,132,73,0.12)'; badge.style.color='#1e8449'; }
+    var salesAllowed=['tab3'];
+    tabs.forEach(function(id){
+      var t=document.getElementById(id);if(!t)return;
+      t.style.display=salesAllowed.indexOf(id)!==-1?'':'none';
+    });
+    if(curTab!==3) goTab(3,document.getElementById('tab3'));
+  } else {
+    // tech — retail WIP + sales/PDI only, stage update only
+    if(badge){ badge.style.display=''; badge.textContent='🔧 '+currentUser.name; badge.className='tech-badge'; }
+    var techAllowed=['tab2','tab3'];
+    tabs.forEach(function(id){
+      var t=document.getElementById(id);if(!t)return;
+      t.style.display=techAllowed.indexOf(id)!==-1?'':'none';
+    });
+    if(['tab0','tab1','tab4','tab5'].indexOf('tab'+curTab)!==-1) goTab(2,document.getElementById('tab2'));
+  }
+  // re-render boards so job filtering kicks in
+  if(typeof renderRetail==='function') renderRetail();
+  if(typeof renderSales==='function') renderSales();
+  setTimeout(function(){
+    var techMode = isTechView();
+    var staffMode = isStaffView();
+    // add buttons: hidden for techs only; adv/sales can create jobs
+    var hideAddRetail = techMode || isSalesView();
+    var hideAddSales  = techMode;
+    var addR=document.getElementById('addRetailBtn'); if(addR)addR.style.display=hideAddRetail?'none':'';
+    var addS=document.getElementById('addSalesBtn');  if(addS)addS.style.display=hideAddSales?'none':'';
+    // hide sort/filter/search for techs only
+    ['wtoolR','wtoolS'].forEach(function(id){
+      var el=document.getElementById(id);if(el)el.style.display=techMode?'none':'';
+    });
+    // delete button — admin only regardless of modal state
+    var db=document.getElementById('delBtn');
+    if(db)db.style.display=adminUnlocked?'':'none';
+  },50);
+}
+
+/* ── isTech helper ── */
+function isTechView(){ return currentUser && currentUser.type==='tech'; }
+function isAdvView(){   return currentUser && currentUser.type==='adv'; }
+function isSalesView(){ return currentUser && currentUser.type==='sales'; }
+function isStaffView(){ return isTechView()||isAdvView()||isSalesView(); }
+
+/* ── Prompt switch (badge click) ── */
+function promptUserSwitch(){
+  if(currentUser && currentUser.type!=='admin'){
+    if(confirm('Log out as '+currentUser.name+'?')){
+      currentUser=null;
+      sessionStorage.removeItem('dwc_user');
+      sessionStorage.removeItem('dwc_auth');
+      adminUnlocked=false;
+      document.getElementById('adminLockBtn').textContent='🔒';
+      document.getElementById('adminLockBtn').classList.remove('unlocked');
+      applyUserUI();
+      document.getElementById('pinOverlay').style.display='flex';
+      document.getElementById('appShell').style.display='none';
+    }
+  } else {
+    adminLock();
+  }
+}
+
+/* ── Staff login modal (tech / adv / sales) ── */
+var _loginRole = 'tech'; // role being logged in
+function openTechLogin(role){
+  _loginRole = role || 'tech';
+  var titles = {tech:'Technician Login', adv:'Service Advisor Login', sales:'Sales Login'};
+  var subs   = {tech:'Select your name and enter your PIN', adv:'Select your name and enter your PIN', sales:'Select your name and enter your PIN'};
+  document.querySelector('#techLoginModal .tl-title').textContent = titles[_loginRole] || 'Login';
+  document.querySelector('#techLoginModal .tl-sub').textContent   = subs[_loginRole]   || '';
+  var staffList = _loginRole==='adv' ? (S.set.adv||[]) : _loginRole==='sales' ? (S.set.sales||[]) : (S.set.tech||[]);
+  var sel = document.getElementById('tlTechSelect');
+  while(sel.options.length > 1) sel.remove(1);
+  staffList.forEach(function(t){
+    var o = document.createElement('option');
+    o.value = t.id; o.textContent = t.name; sel.appendChild(o);
+  });
+  sel.value='';
+  ['tp0','tp1','tp2','tp3'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('tlErr').textContent='';
+  document.getElementById('techLoginModal').classList.add('show');
+  setTimeout(function(){ document.getElementById('tlTechSelect').focus(); },100);
+}
+function closeTechLogin(){
+  document.getElementById('techLoginModal').classList.remove('show');
+}
+function techPinInput(idx){
+  var val = document.getElementById('tp'+idx).value;
+  if(!/[0-9]/.test(val)){ document.getElementById('tp'+idx).value=''; return; }
+  if(idx<3) document.getElementById('tp'+(idx+1)).focus();
+  else submitTechLogin();
+}
+function submitTechLogin(){
+  var staffId = document.getElementById('tlTechSelect').value;
+  if(!staffId){ document.getElementById('tlErr').textContent='Please select your name.'; return; }
+  var pin = ['tp0','tp1','tp2','tp3'].map(function(id){ return document.getElementById(id).value; }).join('');
+  if(pin.length<4){ document.getElementById('tlErr').textContent='Enter your 4-digit PIN.'; return; }
+  var staffList = _loginRole==='adv' ? (S.set.adv||[]) : _loginRole==='sales' ? (S.set.sales||[]) : (S.set.tech||[]);
+  var member = staffList.find(function(t){ return t.id===staffId; });
+  if(!member){ document.getElementById('tlErr').textContent='Account not found.'; return; }
+  if(!member.pin){ document.getElementById('tlErr').textContent='No PIN set — ask admin to set one.'; return; }
+  if(pin !== member.pin){
+    document.getElementById('tlErr').textContent='Incorrect PIN — try again.';
+    ['tp0','tp1','tp2','tp3'].forEach(function(id){ document.getElementById(id).value=''; });
+    document.getElementById('tp0').focus();
+    return;
+  }
+  currentUser = {type:_loginRole, staffId:member.id, name:member.name};
+  sessionStorage.setItem('dwc_user', JSON.stringify(currentUser));
+  closeTechLogin();
+  applyUserUI();
+}
+
+/* ── Tech stage modal ── */
+var _tsmJobId=null, _tsmBoard=null;
+function openTechStageModal(jobId, board){
+  var job = board==='retail'
+    ? (S.retailJobs||[]).find(function(j){ return j.id===jobId; })
+    : (S.salesJobs||[]).find(function(j){ return j.id===jobId; });
+  if(!job) return;
+  _tsmJobId=jobId; _tsmBoard=board;
+  document.getElementById('tsmReg').textContent = job.reg||'?';
+  var vm=[job.make,job.model].filter(Boolean).join(' ')||job.veh||'';
+  document.getElementById('tsmVeh').textContent = vm + (job.colour?' · '+job.colour:'');
+  var stages = board==='retail' ? RETAIL_STAGES : SALES_STAGES;
+  var cont = document.getElementById('tsmStages');
+  while(cont.firstChild) cont.removeChild(cont.firstChild);
+  stages.forEach(function(s){
+    var b = document.createElement('button');
+    b.type='button';
+    b.className='tsm-stage-btn'+(job.stage===s.id?' active':'');
+    b.textContent=s.label;
+    b.addEventListener('click',function(){
+      saveTechStage(s.id);
+    });
+    cont.appendChild(b);
+  });
+  document.getElementById('techStageModal').classList.add('show');
+}
+function closeTechStageModal(){
+  document.getElementById('techStageModal').classList.remove('show');
+  _tsmJobId=null; _tsmBoard=null;
+}
+function saveTechStage(stageId){
+  if(!_tsmJobId||!_tsmBoard) return;
+  var jobs = _tsmBoard==='retail' ? S.retailJobs : S.salesJobs;
+  var job = jobs.find(function(j){ return j.id===_tsmJobId; });
+  if(!job) return;
+  if(stageId==='ready'||stageId==='handover') job.readyDate=new Date().toISOString();
+  job.stage = stageId;
+  save();
+  closeTechStageModal();
+  if(_tsmBoard==='retail') renderRetail();
+  else renderSales();
+}
+
+/* ── addMemberRole — add adv/sales with PIN ── */
+function addMemberRole(type){
+  var nameIn  = type==='adv' ? 'addAdvIn'   : 'addSalesIn';
+  var pinIn   = type==='adv' ? 'addAdvPin'  : 'addSalesPin';
+  var prefix  = type==='adv' ? 'a'          : 's';
+  var nameVal = document.getElementById(nameIn).value.trim();
+  var pinVal  = document.getElementById(pinIn).value.trim();
+  if(!nameVal){ alert('Enter a name.'); return; }
+  if(pinVal && !/^[0-9]{4}$/.test(pinVal)){ alert('PIN must be exactly 4 digits (or leave blank).'); return; }
+  S.set[type].push({id:prefix+uid(), name:nameVal, pin:pinVal||''});
+  document.getElementById(nameIn).value='';
+  document.getElementById(pinIn).value='';
+  save(); renderSettings();
+}
+
+/* ── addMemberTech — add tech with PIN ── */
+function addMemberTech(){
+  var nameVal = document.getElementById('addTechIn').value.trim();
+  var pinVal  = document.getElementById('addTechPin').value.trim();
+  if(!nameVal){ alert('Enter a technician name.'); return; }
+  if(pinVal && !/^[0-9]{4}$/.test(pinVal)){ alert('PIN must be exactly 4 digits (or leave blank).'); return; }
+  S.set.tech.push({id:'t'+uid(), name:nameVal, pin:pinVal||''});
+  document.getElementById('addTechIn').value='';
+  document.getElementById('addTechPin').value='';
+  save(); renderSettings();
+}
+
+/* ── renderSettings: show PIN field per tech ── */
+/* Patch applied via override of tech list rendering */
+
+/* ── keyboard for tech login ── */
+document.addEventListener('keydown', function(e){
+  if(!document.getElementById('techLoginModal').classList.contains('show')) return;
+  if(e.key==='Enter') submitTechLogin();
+  if(e.key==='Escape') closeTechLogin();
+});
+
 </script>
 
 <!-- ADMIN LOGIN MODAL -->
@@ -2123,6 +2561,39 @@ document.addEventListener('keydown', function(e){
     <div class="adm-btns">
       <button class="btn" onclick="closeAdminModal()">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- TECH LOGIN MODAL -->
+<div id="techLoginModal">
+  <div class="tl-box">
+    <div class="tl-title">👤 Technician Login</div>
+    <div class="tl-sub">Select your name and enter your PIN</div>
+    <div class="tl-label">Your Name</div>
+    <select class="tl-select" id="tlTechSelect"><option value="">-- Select technician --</option></select>
+    <div class="tl-label">PIN</div>
+    <div class="tl-pin">
+      <input type="password" inputmode="numeric" maxlength="1" id="tp0" oninput="techPinInput(0)">
+      <input type="password" inputmode="numeric" maxlength="1" id="tp1" oninput="techPinInput(1)">
+      <input type="password" inputmode="numeric" maxlength="1" id="tp2" oninput="techPinInput(2)">
+      <input type="password" inputmode="numeric" maxlength="1" id="tp3" oninput="techPinInput(3)">
+    </div>
+    <div class="tl-err" id="tlErr"></div>
+    <div class="tl-btns">
+      <button class="btn" style="flex:1" onclick="closeTechLogin()">Cancel</button>
+      <button class="btn pr" style="flex:1" onclick="submitTechLogin()">Login</button>
+    </div>
+  </div>
+</div>
+
+<!-- TECH STAGE UPDATE MODAL -->
+<div id="techStageModal">
+  <div class="tsm-box">
+    <div class="tsm-reg" id="tsmReg"></div>
+    <div class="tsm-veh" id="tsmVeh"></div>
+    <div class="tsm-label">Update Stage</div>
+    <div class="tsm-stages" id="tsmStages"></div>
+    <button class="btn" style="width:100%" onclick="closeTechStageModal()">Close</button>
   </div>
 </div>
 </body>
