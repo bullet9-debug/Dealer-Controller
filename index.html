@@ -1413,7 +1413,7 @@ function openEditRetail(id){
   editId=id;modalStage=job.stage;modalCats=job.repCats?job.repCats.slice():(job.repCat?[job.repCat]:[]);
   clearModal();setModalBoard('retail');fillJobData(job);
   document.getElementById('mTitle').textContent='Edit Retail Job';
-  document.getElementById('delBtn').style.display='';
+  document.getElementById('delBtn').style.display=adminUnlocked?'':'none';
   document.getElementById('saveBtn').className='btn pr';
   document.getElementById('jobModal').classList.add('op');
 }
@@ -1422,7 +1422,7 @@ function openEditSales(id){
   editId=id;modalStage=job.stage;modalCats=job.repCats?job.repCats.slice():(job.repCat?[job.repCat]:[]);
   clearModal();setModalBoard('sales');fillJobData(job);
   document.getElementById('mTitle').textContent='Edit PDI / Sales Job';
-  document.getElementById('delBtn').style.display='';
+  document.getElementById('delBtn').style.display=adminUnlocked?'':'none';
   document.getElementById('saveBtn').className='btn spr';
   document.getElementById('jobModal').classList.add('op');
 }
