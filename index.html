@@ -792,7 +792,8 @@ function defState(){
     set: {
       adv:   [{id:'a1',name:'Advisor 1'},{id:'a2',name:'Advisor 2'},{id:'a3',name:'Advisor 3'}],
       tech:  [{id:'t1',name:'Tech 1'},{id:'t2',name:'Tech 2'},{id:'t3',name:'Tech 3'},{id:'t4',name:'Tech 4'},{id:'t5',name:'Tech 5'},{id:'t6',name:'Tech 6'}],
-      sales: [{id:'s1',name:'Sales Exec 1'},{id:'s2',name:'Sales Exec 2'}]
+      sales: [{id:'s1',name:'Sales Exec 1'},{id:'s2',name:'Sales Exec 2'}],
+      adminPin: '1234'
     }
   };
 }
@@ -808,7 +809,7 @@ function applyState(data){
   if(!S.set.adv)S.set.adv=defState().set.adv;
   if(!S.set.tech)S.set.tech=defState().set.tech;
   if(!S.set.sales)S.set.sales=defState().set.sales;
-  if(!S.brief)S.brief=defState().brief;
+  if(!S.set.adminPin)S.set.adminPin=localStorage.getItem('dwc_admin_pin')||'1234';
   if(!S.brief.signOffTime)S.brief.signOffTime=null;
   if(!S.brief.openedAt)S.brief.openedAt=null;
   if(!S.retailJobs)S.retailJobs=[];
@@ -2017,10 +2018,9 @@ function bootApp(){
    ADMIN / PIN PROTECTION
 ═══════════════════════════════════════════ */
 var adminUnlocked = false;
-var ADMIN_PIN_KEY = 'dwc_admin_pin';
 
 function getAdminPin(){
-  return localStorage.getItem(ADMIN_PIN_KEY) || '1234';
+  return (S.set&&S.set.adminPin)||'1234';
 }
 
 function toggleAdminLogin(){
@@ -2091,11 +2091,12 @@ function applyAdminUI(){
 
 /* Change PIN — called from settings */
 function changePin(){
-  var np = (document.getElementById('newPinIn')||{}).value||'';
-  if(!/^[0-9]{4}$/.test(np)){ alert('PIN must be exactly 4 digits.'); return; }
-  localStorage.setItem(ADMIN_PIN_KEY, np);
+  var np=(document.getElementById('newPinIn')||{}).value||'';
+  if(!/^[0-9]{4}$/.test(np)){alert('PIN must be exactly 4 digits.');return;}
+  S.set.adminPin=np;
+  save();
   document.getElementById('newPinIn').value='';
-  alert('PIN updated successfully.');
+  alert('PIN updated and synced to all devices.');
 }
 
 /* keyboard: Enter to submit in PIN modal */
