@@ -848,13 +848,14 @@ var S = defState();
 
 function applyState(data){
   S=data;
+  _supabaseLoaded=true;
   setTimeout(onStateReady,0);
   if(!S.set)S.set=defState().set;
   if(!S.actions)S.actions=[];
   if(!S.set.adv)S.set.adv=defState().set.adv;
   if(!S.set.tech)S.set.tech=defState().set.tech;
   if(!S.set.sales)S.set.sales=defState().set.sales;
-  if(!S.set.adminPin)S.set.adminPin=localStorage.getItem('dwc_admin_pin')||'1234';
+  if(!S.set.adminPin)S.set.adminPin='1234';
   (S.set.tech||[]).forEach(function(t){if(!t.pin)t.pin='';});
   (S.set.adv||[]).forEach(function(t){if(!t.pin)t.pin='';});
   (S.set.sales||[]).forEach(function(t){if(!t.pin)t.pin='';});
@@ -877,6 +878,18 @@ function refreshAll(){
   if(curTab===1)renderChase();
   if(curTab===4)renderEOD();
   if(curTab===5)renderSettings();
+  // If staff login modal is open, refresh the names dropdown in case state just loaded
+  if(document.getElementById('techLoginModal').classList.contains('show')){
+    var staffList = _loginRole==='adv' ? (S.set.adv||[]) : _loginRole==='sales' ? (S.set.sales||[]) : (S.set.tech||[]);
+    var sel = document.getElementById('tlTechSelect');
+    var prev = sel.value;
+    while(sel.options.length > 1) sel.remove(1);
+    staffList.forEach(function(t){
+      var o = document.createElement('option');
+      o.value = t.id; o.textContent = t.name; sel.appendChild(o);
+    });
+    sel.value = prev; // restore selection if possible
+  }
 }
 
 /* ═══════════════════════════════════════════
@@ -2121,13 +2134,16 @@ function showAdminPinBox(){
   document.getElementById('pinInput').value='';
   setTimeout(function(){document.getElementById('pinInput').focus();},100);
 }
+var _supabaseLoaded = false; // set true once first Supabase response arrives
+
 function showRoleLoginFromGate(role){
   bootApp();
   var attempts=0;
   var wait=setInterval(function(){
     attempts++;
-    if(attempts>40){clearInterval(wait);return;}
-    if(S&&S.set){
+    if(attempts>60){clearInterval(wait);return;} // 9s max
+    // Wait until Supabase has loaded (not just default S), OR fall back after 2s
+    if(_supabaseLoaded || attempts>13){
       clearInterval(wait);
       openTechLogin(role);
     }
@@ -2138,7 +2154,7 @@ function showTechLoginFromGate(){
 }
 function checkPin(){
   var entered=document.getElementById('pinInput').value;
-  var adminPin=(S&&S.set&&S.set.adminPin)||localStorage.getItem('dwc_admin_pin')||'1234';
+  var adminPin=(S&&S.set&&S.set.adminPin)||'1234';
   if(entered===adminPin){
     sessionStorage.setItem('dwc_auth','1');
     currentUser={type:'admin'};
