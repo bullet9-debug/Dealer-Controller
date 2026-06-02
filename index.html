@@ -663,6 +663,19 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
         </div>
       </div>
 
+      <!-- Sales always-visible row: Labour Hrs + Handover Date -->
+      <div id="mSalesQuickRow" style="display:none;">
+        <div class="frow">
+          <div class="fg" style="max-width:150px;"><label class="flbl">Labour Hrs</label><input class="finput" type="number" id="fSalesLabHrs" placeholder="0.0" min="0" step="0.5"></div>
+          <div class="fg"><label class="flbl">Handover Date</label>
+            <div class="date-picker-wrap">
+              <div class="date-display-btn" id="fHandoverBtn">📅 Select date</div>
+              <input type="date" class="date-overlay-input" id="fHandover" oninput="updateDateBtn('fHandover','fHandoverBtn')">
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="msec expand-toggle" id="expandToggle"><span class="etarrow">▶</span> More Detail</div>
       <div class="expand-body" id="expandBody">
         <div class="frow">
@@ -677,16 +690,10 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
             <div class="fg"><label class="flbl">Auth Ref</label><input class="finput" id="fAuthRef" placeholder="e.g. WO12345"></div>
           </div>
         </div>
-        <!-- Sales specific detail -->
+        <!-- Sales specific detail (in expand: sales exec only) -->
         <div id="mSalesDetail" style="display:none;">
           <div class="frow">
             <div class="fg"><label class="flbl">Sales Executive</label><select class="fselect" id="fSalesExec"></select></div>
-            <div class="fg"><label class="flbl">Handover Date</label>
-              <div class="date-picker-wrap">
-                <div class="date-display-btn" id="fHandoverBtn">📅 Select date</div>
-                <input type="date" class="date-overlay-input" id="fHandover" oninput="updateDateBtn('fHandover','fHandoverBtn')">
-              </div>
-            </div>
           </div>
         </div>
         <div class="fg" style="margin-top:8px;"><label class="flbl">Notes / Blockers</label><textarea class="ftarea" id="fNotes" placeholder="Notes, blockers, customer contact log..."></textarea></div>
@@ -837,7 +844,7 @@ function defState(){
       adv:   [{id:'a1',name:'Paul',pin:''},{id:'a2',name:'Joe',pin:''},{id:'a3',name:'Oliver',pin:''}],
       tech:  [{id:'t1',name:'Tech 1',pin:''},{id:'t2',name:'Tech 2',pin:''},{id:'t3',name:'Tech 3',pin:''},{id:'t4',name:'Tech 4',pin:''},{id:'t5',name:'Tech 5',pin:''},{id:'t6',name:'Tech 6',pin:''}],
       sales: [{id:'s1',name:'James',pin:''},{id:'s2',name:'Daniel',pin:''}],
-      adminPin: '1234'
+      adminPin: '3333'
     }
   };
 }
@@ -855,7 +862,7 @@ function applyState(data){
   if(!S.set.adv)S.set.adv=defState().set.adv;
   if(!S.set.tech)S.set.tech=defState().set.tech;
   if(!S.set.sales)S.set.sales=defState().set.sales;
-  if(!S.set.adminPin)S.set.adminPin='1234';
+  if(!S.set.adminPin||S.set.adminPin==='1234')S.set.adminPin='3333';
   (S.set.tech||[]).forEach(function(t){if(!t.pin)t.pin='';});
   (S.set.adv||[]).forEach(function(t){if(!t.pin)t.pin='';});
   (S.set.sales||[]).forEach(function(t){if(!t.pin)t.pin='';});
@@ -1367,6 +1374,7 @@ function setModalBoard(board){
   document.getElementById('mSalesSection').style.display=board==='sales'?'':'none';
   document.getElementById('mRetailDetail').style.display=board==='retail'?'':'none';
   document.getElementById('mSalesDetail').style.display=board==='sales'?'':'none';
+  document.getElementById('mSalesQuickRow').style.display=board==='sales'?'':'none';
   var etaLbl=document.getElementById('fEtaLabel');if(etaLbl)etaLbl.textContent=board==='sales'?'Handover ETA':'Promised / ETA';
   /* Stage selector */
   var stages=board==='retail'?RETAIL_STAGES:SALES_STAGES;
@@ -1404,7 +1412,7 @@ function setModalBoard(board){
 }
 
 function clearModal(){
-  ['fReg','fMake','fModel','fColour','fWipNo','fLabHrs','fValue','fAuthRef','fNotes'].forEach(function(id){document.getElementById(id).value='';});
+  ['fReg','fMake','fModel','fColour','fWipNo','fLabHrs','fSalesLabHrs','fValue','fAuthRef','fNotes'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   document.querySelectorAll('.ftog').forEach(function(b){var f=b.dataset.flag;b.className='ftog';});
   var todayIso=new Date().toISOString().split('T')[0];isoToDp(todayIso,'fDateIn');clearDp('fEta');clearDp('fHandover');
   ['fMotExp','fTaxDue','fTaxStatus'].forEach(function(id){document.getElementById(id).value='';});
@@ -1436,6 +1444,7 @@ function fillJobData(job){
     (job.flags||[]).forEach(function(f){var b=document.querySelector('.ftog[data-flag="'+f+'"]');if(b)b.className='ftog on-'+f;});
   }else{
     document.getElementById('fSalesExec').value=job.salesId||'';
+    document.getElementById('fSalesLabHrs').value=job.labHrs||'';
     isoToDp(job.handoverDate||'','fHandover');
   }
   document.getElementById('fAdv').value=job.advId||'';
@@ -1454,7 +1463,7 @@ function fillJobData(job){
     var cat=cats.find(function(c){return c.label===b.textContent;});
     b.classList.toggle('on',!!(cat&&modalCats.indexOf(cat.id)!==-1));
   });
-  var hasDetail=job.notes||job.labHrs||job.value||job.authRef||job.salesId||job.handoverDate;
+  var hasDetail=job.notes||job.advId||job.techId||(editBoard==='retail'&&(job.labHrs||job.value||job.authRef))||(editBoard==='sales'&&job.salesId);
   if(hasDetail){document.getElementById('expandBody').classList.add('open');document.getElementById('expandToggle').classList.add('open');}
 }
 
@@ -1541,7 +1550,7 @@ document.getElementById('saveBtn').addEventListener('click',function(){
     }
     save();closeModal();renderRetail();renderHeader();renderUrgStripR();
   }else{
-    Object.assign(baseData,{salesId:document.getElementById('fSalesExec').value,handoverDate:dpToIso('fHandover')});
+    Object.assign(baseData,{salesId:document.getElementById('fSalesExec').value,handoverDate:dpToIso('fHandover'),labHrs:parseFloat(document.getElementById('fSalesLabHrs').value)||0});
     if(editId){
       var sidx=S.salesJobs.findIndex(function(j){return j.id===editId;});
       if(sidx!==-1){
@@ -1707,7 +1716,7 @@ function renderEOD(){
   /* ── Tech Hours Breakdown ── */
   var techHdrDiv=mk('div','eod-section-hdr retail');techHdrDiv.textContent='Technician Hours';techHdrDiv.style.background='#1a5276';container.appendChild(techHdrDiv);
 
-  var techJobs = S.retailJobs; // all retail jobs
+  var techJobs = S.retailJobs.concat(S.salesJobs); // all retail + sales jobs
   var techMap = {};
   // build map: techId -> {name, jobs:[]}
   (S.set.tech||[]).forEach(function(t){
@@ -1736,24 +1745,36 @@ function renderEOD(){
     // per-job rows
     var ul=mk('div','eod-list');
     entry.jobs.forEach(function(j){
+      var isRetail=!!S.retailJobs.find(function(r){return r.id===j.id;});
       var row=mk('div','eod-row');
-      var wipEl=mk('div','eod-reg');wipEl.textContent=j.wipNo?'WIP '+j.wipNo:(j.reg||'?');
-      wipEl.style.minWidth='80px';
 
-      var regEl=mk('span','');
-      regEl.style.cssText='font-size:11px;font-weight:700;color:#6b7c96;margin-right:6px;';
-      if(j.wipNo)regEl.textContent=j.reg||'';
+      // Registration plate — always shown
+      var regEl=mk('div','eod-reg');
+      regEl.textContent=j.reg||'?';
+      regEl.style.minWidth='80px';
+
+      // WIP badge — shown if set
+      var wipEl=mk('div','eod-sb');
+      if(j.wipNo){
+        wipEl.textContent='WIP '+j.wipNo;
+        wipEl.style.cssText='background:rgba(0,0,0,0.06);color:#444;border:1px solid #bbb;min-width:60px;text-align:center;font-size:11px;';
+      }
 
       var vm=[j.make,j.model].filter(Boolean).join(' ')||j.veh||'';
       var infoEl=mk('div','eod-info');
       infoEl.textContent=vm+(j.colour?' · '+j.colour:'');
+
+      var boardEl=mk('div','eod-sb');
+      boardEl.textContent=isRetail?'Retail':'PDI';
+      boardEl.style.cssText='background:'+(isRetail?'rgba(0,48,135,0.1)':'rgba(232,161,0,0.12)')+';color:'+(isRetail?'#003087':'#c17f00')+';border:1px solid '+(isRetail?'#003087':'#e8a100')+';min-width:42px;text-align:center;';
 
       var hrs=parseFloat(j.labHrs)||0;
       var hrsEl=mk('div','eod-sb');
       hrsEl.textContent=hrs.toFixed(1)+' hrs';
       hrsEl.style.cssText='background:rgba(26,82,118,0.1);color:#1a5276;border:1px solid #1a5276;min-width:52px;text-align:center;';
 
-      app(row,wipEl,regEl,infoEl,hrsEl);ul.appendChild(row);
+      app(row,regEl);if(j.wipNo)app(row,wipEl);app(row,infoEl,boardEl,hrsEl);
+      ul.appendChild(row);
     });
     container.appendChild(ul);
   });
@@ -2122,7 +2143,6 @@ function populateDVLAResult(data,fromCache){
 /* ═══════════════════════════════════════════
    PIN GATE
 ═══════════════════════════════════════════ */
-var WORKSHOP_PIN='1234';
 function showRoleBox(){
   document.getElementById('roleBox').style.display='';
   document.getElementById('adminPinBox').style.display='none';
@@ -2154,21 +2174,61 @@ function showTechLoginFromGate(){
 }
 function checkPin(){
   var entered=document.getElementById('pinInput').value;
-  var adminPin=(S&&S.set&&S.set.adminPin)||'1234';
-  if(entered===adminPin){
-    sessionStorage.setItem('dwc_auth','1');
-    currentUser={type:'admin'};
-    sessionStorage.setItem('dwc_user',JSON.stringify(currentUser));
-    adminUnlocked=true;
-    document.getElementById('adminLockBtn').textContent='🔓';
-    document.getElementById('adminLockBtn').classList.add('unlocked');
-    bootApp();
-  }else{
-    var err=document.getElementById('pinError2')||document.getElementById('pinError');
-    err.textContent='Incorrect PIN — try again';
-    document.getElementById('pinInput').value='';document.getElementById('pinInput').focus();
-    setTimeout(function(){err.textContent='';},2500);
+  var errEl=document.getElementById('pinError2')||document.getElementById('pinError');
+
+  // If Supabase has already loaded, validate immediately
+  if(_supabaseLoaded){
+    var adminPin=(S&&S.set&&S.set.adminPin)||'3333';
+    if(entered===adminPin){
+      _doAdminLogin();
+    }else{
+      errEl.textContent='Incorrect PIN — try again';
+      document.getElementById('pinInput').value='';document.getElementById('pinInput').focus();
+      setTimeout(function(){errEl.textContent='';},2500);
+    }
+    return;
   }
+
+  // State not yet loaded — boot app to trigger Supabase load, then validate
+  errEl.textContent='';
+  bootApp();
+  var attempts=0;
+  var wait=setInterval(function(){
+    attempts++;
+    if(attempts>40){
+      clearInterval(wait);
+      // Validate with whatever we have now
+      var adminPin=(S&&S.set&&S.set.adminPin)||'3333';
+      if(entered===adminPin){_doAdminLogin();}
+      else{errEl.textContent='Incorrect PIN — try again';setTimeout(function(){errEl.textContent='';},2500);}
+      return;
+    }
+    if(_supabaseLoaded){
+      clearInterval(wait);
+      var adminPin=(S&&S.set&&S.set.adminPin)||'3333';
+      if(entered===adminPin){
+        _doAdminLogin();
+      }else{
+        // Show the overlay again so user can retry with correct PIN
+        document.getElementById('pinOverlay').style.display='flex';
+        document.getElementById('appShell').style.display='none';
+        errEl.textContent='Incorrect PIN — try again';
+        document.getElementById('pinInput').value='';
+        setTimeout(function(){document.getElementById('pinInput').focus();errEl.textContent='';},100);
+      }
+    }
+  },150);
+}
+
+function _doAdminLogin(){
+  sessionStorage.setItem('dwc_auth','1');
+  currentUser={type:'admin'};
+  sessionStorage.setItem('dwc_user',JSON.stringify(currentUser));
+  adminUnlocked=true;
+  document.getElementById('adminLockBtn').textContent='🔓';
+  document.getElementById('adminLockBtn').classList.add('unlocked');
+  document.getElementById('pinOverlay').style.display='none';
+  document.getElementById('appShell').style.display='block';
 }
 
 /* ═══════════════════════════════════════════
@@ -2231,7 +2291,7 @@ function onStateReady(){
 var adminUnlocked = false;
 
 function getAdminPin(){
-  return (S.set&&S.set.adminPin)||'1234';
+  return (S.set&&S.set.adminPin)||'3333';
 }
 
 function toggleAdminLogin(){
