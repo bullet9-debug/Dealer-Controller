@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:100vh;}
@@ -2706,7 +2707,7 @@ document.addEventListener('keydown', function(e){
 
     <!-- Step 1: Upload -->
     <div id="scanStep1">
-      <p style="font-size:13px;color:#5a6a80;margin-bottom:14px;">Take a photo of a printed tracking grid or WIP list. Claude will extract the booking numbers and registrations automatically.</p>
+      <p style="font-size:13px;color:#5a6a80;margin-bottom:14px;">Take a photo of a printed tracking grid or WIP list. Text is read locally on your device — no internet required for the scan itself.</p>
       <label id="scanDropZone" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;border:2px dashed #b0c4de;border-radius:10px;padding:32px 20px;cursor:pointer;background:#f8faff;transition:border-color 0.2s;" ondragover="event.preventDefault();this.style.borderColor='#0077cc';" ondragleave="this.style.borderColor='#b0c4de';" ondrop="handleScanDrop(event)">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0077cc" stroke-width="1.8"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 3H8l-2 4h12l-2-4z"/><circle cx="12" cy="14" r="3"/></svg>
         <span style="font-size:14px;font-weight:700;color:#1a2b44;">Tap to select photo</span>
@@ -2725,7 +2726,7 @@ document.addEventListener('keydown', function(e){
     <!-- Step 2: Processing -->
     <div id="scanStep2" style="display:none;text-align:center;padding:32px 0;">
       <div id="scanSpinner" style="font-size:36px;animation:spin 1s linear infinite;display:inline-block;">⚙️</div>
-      <p style="margin-top:16px;font-size:14px;color:#5a6a80;" id="scanStatusTxt">Analysing image…</p>
+      <p style="margin-top:16px;font-size:14px;color:#5a6a80;" id="scanStatusTxt">Preparing image…</p>
     </div>
 
     <!-- Step 3: Review results -->
@@ -2814,70 +2815,117 @@ function fileToBase64(file){
 async function runScanExtract(){
   if(!_scanFile){alert('Please select a photo first.');return;}
   scanShowStep(2);
-  document.getElementById('scanStatusTxt').textContent='Sending to Claude for analysis…';
+  var statusEl=document.getElementById('scanStatusTxt');
+
   try{
-    var b64=await fileToBase64(_scanFile);
-    var mt=_scanFile.type||'image/jpeg';
-    var prompt=[
-      "You are analysing a photo of a workshop or dealership tracking grid / WIP list.",
-      "Extract every row that contains a BOOKING/JOB NUMBER and a REGISTRATION PLATE.",
-      "Return ONLY a JSON array, no markdown, no explanation.",
-      "Each element: {\"wip\": \"57803\", \"reg\": \"WD17XPZ\"}",
-      "Rules:",
-      "- wip: the booking or job number (digits only, no prefix)",
-      "- reg: UK registration plate, uppercase, no spaces",
-      "- If a row has no reg plate visible, omit that row",
-      "- If a row has no booking number, omit that row",
-      "- Do NOT include header rows"
-    ].join('\n');
-    var resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
-        messages:[{role:'user',content:[
-          {type:'image',source:{type:'base64',media_type:mt,data:b64}},
-          {type:'text',text:prompt}
-        ]}]
-      })
+    // ── Pre-process image for better OCR ─────────────────────────────────
+    statusEl.textContent='Preparing image…';
+    var imgEl=document.getElementById('scanPreviewImg');
+    var canvas=document.createElement('canvas');
+    var ctx=canvas.getContext('2d');
+
+    // Scale up for better OCR accuracy, cap at 2400px wide
+    var scale=Math.min(2400/imgEl.naturalWidth,2);
+    scale=Math.max(scale,1);
+    canvas.width=Math.round(imgEl.naturalWidth*scale);
+    canvas.height=Math.round(imgEl.naturalHeight*scale);
+
+    // Greyscale + contrast boost
+    ctx.filter='grayscale(1) contrast(1.4) brightness(1.1)';
+    ctx.drawImage(imgEl,0,0,canvas.width,canvas.height);
+
+    var processedDataUrl=canvas.toDataURL('image/png');
+
+    // ── Run Tesseract OCR ─────────────────────────────────────────────────
+    statusEl.textContent='Running OCR (this takes ~10 seconds)…';
+
+    var result=await Tesseract.recognize(processedDataUrl,'eng',{
+      logger:function(m){
+        if(m.status==='recognizing text'){
+          var pct=Math.round((m.progress||0)*100);
+          statusEl.textContent='Reading text… '+pct+'%';
+        }
+      },
+      tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 /-.',
+      tessedit_pageseg_mode:'6',
     });
-    var data=await resp.json();
-    var raw=data.content.map(function(c){return c.text||'';}).join('');
-    // Strip any accidental markdown fences
-    raw=raw.replace(/```[a-z]*\n?/gi,'').trim();
-    var rows;
-    try{rows=JSON.parse(raw);}catch(e){
+
+    var text=result.data.text;
+    if(!text||text.trim().length<5){
+      throw new Error('OCR returned no readable text. Try a clearer, well-lit photo.');
+    }
+
+    // ── Parse OCR text into WIP + Reg pairs ───────────────────────────────
+    statusEl.textContent='Parsing results…';
+    var rows=parseOcrText(text);
+
+    if(!rows.length){
       scanShowStep(1);
       document.getElementById('scanPreviewWrap').style.display='';
       document.getElementById('scanDropZone').style.display='none';
-      alert('Could not parse response. Please try a clearer photo.\n\nDetail: '+raw.substring(0,200));
+      alert('No booking numbers or registration plates found.\n\nTips:\n• Hold phone steady and ensure good lighting\n• Make sure both the WIP/booking number column AND the reg column are in frame\n• Try cropping the photo to just the grid area');
       return;
     }
-    if(!Array.isArray(rows)||rows.length===0){
-      scanShowStep(1);
-      document.getElementById('scanPreviewWrap').style.display='';
-      document.getElementById('scanDropZone').style.display='none';
-      alert('No jobs found in this photo. Make sure the booking numbers and registration plates are visible and in focus.');
-      return;
-    }
-    // Mark duplicates
+
+    // ── Mark duplicates and show review ──────────────────────────────────
     var existingRegs=(S.retailJobs||[]).map(function(j){return(j.reg||'').toUpperCase().replace(/\s/g,'');});
     var existingWips=(S.retailJobs||[]).map(function(j){return(j.wipNo||'').trim();});
     _scanResults=rows.map(function(r){
-      var reg=(r.reg||'').toUpperCase().replace(/\s/g,'');
-      var wip=(r.wip||'').toString().trim();
+      var reg=r.reg.toUpperCase().replace(/\s/g,'');
+      var wip=r.wip.trim();
       var dupe=existingRegs.indexOf(reg)!==-1||existingWips.indexOf(wip)!==-1;
       return{wip:wip,reg:reg,skip:dupe,dupe:dupe};
     });
     renderScanResults();
     scanShowStep(3);
+
   }catch(err){
     scanShowStep(1);
     document.getElementById('scanPreviewWrap').style.display='';
     document.getElementById('scanDropZone').style.display='none';
-    alert('Error communicating with Claude API: '+err.message);
+    alert('OCR error: '+err.message);
   }
+}
+
+function parseOcrText(text){
+  var REG_RE=/\b([A-Z]{2}[0-9]{2}[A-Z]{3}|[A-Z][0-9]{1,3}[A-Z]{3}|[A-Z]{3}[0-9]{1,3}[A-Z]|[A-Z]{2}[0-9]{2}\s?[A-Z]{3})\b/gi;
+  var WIP_RE=/\b([0-9]{4,6})\b/g;
+  var lines=text.split('\n').map(function(l){return l.trim();}).filter(Boolean);
+  var results=[];
+
+  lines.forEach(function(line){
+    var regs=line.match(REG_RE);
+    var wips=line.match(WIP_RE);
+    if(!regs||!wips) return;
+
+    var reg=fixRegOCR(regs[0].toUpperCase().replace(/\s/g,''));
+
+    // Take the longest number on the line as the WIP/booking number
+    var wip=wips.slice().sort(function(a,b){return b.length-a.length;})[0];
+    if(parseInt(wip)<1000||parseInt(wip)>999999) return;
+
+    // Skip duplicate regs
+    if(results.some(function(r){return r.reg===reg;})) return;
+
+    results.push({wip:wip,reg:reg});
+  });
+
+  return results;
+}
+
+function fixRegOCR(reg){
+  // Correct common OCR confusions using known UK XX00XXX format structure
+  var letterFix={'0':'O','1':'I','5':'S','8':'B'};
+  var digitFix={'O':'0','I':'1','S':'5','B':'8'};
+  if(reg.length===7){
+    var out='';
+    for(var i=0;i<7;i++){
+      var c=reg[i];
+      out+=(i===2||i===3)?(digitFix[c]||c):(letterFix[c]||c);
+    }
+    return out;
+  }
+  return reg;
 }
 
 function renderScanResults(){
