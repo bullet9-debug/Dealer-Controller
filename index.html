@@ -2553,7 +2553,7 @@ function submitTechLogin(){
     document.getElementById('tp0').focus();
     return;
   }
-  currentUser = {type:_loginRole, staffId:member.id, name:member.name};
+  currentUser = {type:_loginRole, staffId:member.id, techId:member.id, advId:member.id, salesId:member.id, name:member.name};
   sessionStorage.setItem('dwc_user', JSON.stringify(currentUser));
   sessionStorage.setItem('dwc_auth','1');
   closeTechLogin();
