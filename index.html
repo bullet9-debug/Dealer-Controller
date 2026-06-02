@@ -1503,7 +1503,10 @@ function openEditSales(id){
 }
 function closeModal(){document.getElementById('jobModal').classList.remove('op');editId=null;editBoard=null;}
 
+var _modalEventsBound = false;
 function bindModalEvents(){
+  if(_modalEventsBound) return;
+  _modalEventsBound = true;
   document.getElementById('expandToggle').addEventListener('click',function(){
     this.classList.toggle('open');document.getElementById('expandBody').classList.toggle('open');
   });
