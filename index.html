@@ -528,6 +528,10 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
       <option value="reg">Sort: Reg</option>
     </select>
     <button class="btn pr" onclick="openAddRetail()" id="addRetailBtn">+ Add Job <span class="kb-hint">N</span></button>
+    <button class="btn" id="scanImportBtn" onclick="openScanImport()" style="background:#0077cc;color:#fff;border:none;display:flex;align-items:center;gap:6px;" title="Import from photo">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 3H8l-2 4h12l-2-4z"/><circle cx="12" cy="14" r="3"/></svg>
+      Scan List
+    </button>
   </div>
   <div class="urgency-strip" id="urgStripR"></div>
   <div id="wipListR"></div>
@@ -1321,6 +1325,7 @@ function makeSalesCard(job){
   var detail=mk('div','jcard-detail');
   if(job.eta){var etaD=mk('div','jcom-i');etaD.textContent='Handover: '+fmtDate(job.eta);detail.appendChild(etaD);}
   if(job.handoverDate){var hd=mk('div','jcom-i');hd.textContent='H/O Date: '+fmtDate(job.handoverDate);detail.appendChild(hd);}
+  if(job.labHrs){var lhS=mk('div','jcom-i');lhS.textContent='Hours: '+parseFloat(job.labHrs).toFixed(1)+'h';detail.appendChild(lhS);}
   if(job.notes){var nd=mk('div','jnotes');nd.textContent=job.notes.slice(0,80)+(job.notes.length>80?'…':'');detail.appendChild(nd);}
   app(card,top,row2,dvlaRow2,detail);
   card.addEventListener('click',function(){if(isTechView()){openTechStageModal(job.id,'sales');}else{openEditSales(job.id);}});
@@ -2129,10 +2134,7 @@ function showRoleLoginFromGate(role){
   },150);
 }
 function showTechLoginFromGate(){
-  /* boot the app first (no admin rights), then show tech login */
-  sessionStorage.setItem('dwc_auth','1');
-  bootApp();
-  openTechLogin();
+  showRoleLoginFromGate('tech');
 }
 function checkPin(){
   var entered=document.getElementById('pinInput').value;
@@ -2176,6 +2178,7 @@ function startAdminLogin(){
       openAdminModal(function(){
         currentUser={type:'admin'};
         sessionStorage.setItem('dwc_user',JSON.stringify(currentUser));
+        sessionStorage.setItem('dwc_auth','1');
         applyUserUI();
       });
     }
@@ -2236,6 +2239,14 @@ function openAdminModal(callback){
 function closeAdminModal(){
   document.getElementById('adminModal').classList.add('hide');
   window._adminCallback = null;
+  // If nobody logged in yet (gate flow), go back to role select
+  if(!currentUser){
+    document.getElementById('appShell').style.display='none';
+    document.getElementById('pinOverlay').style.display='flex';
+    document.getElementById('roleBox').style.display='';
+    document.getElementById('adminPinBox').style.display='none';
+    sessionStorage.removeItem('dwc_auth');
+  }
 }
 
 function pinInput(idx){
@@ -2436,6 +2447,14 @@ function openTechLogin(role){
 }
 function closeTechLogin(){
   document.getElementById('techLoginModal').classList.remove('show');
+  // If nobody is logged in, return to the role-select gate
+  if(!currentUser){
+    document.getElementById('appShell').style.display='none';
+    document.getElementById('pinOverlay').style.display='flex';
+    document.getElementById('roleBox').style.display='';
+    document.getElementById('adminPinBox').style.display='none';
+    sessionStorage.removeItem('dwc_auth');
+  }
 }
 function techPinInput(idx){
   var val = document.getElementById('tp'+idx).value;
@@ -2460,6 +2479,7 @@ function submitTechLogin(){
   }
   currentUser = {type:_loginRole, staffId:member.id, name:member.name};
   sessionStorage.setItem('dwc_user', JSON.stringify(currentUser));
+  sessionStorage.setItem('dwc_auth','1');
   closeTechLogin();
   applyUserUI();
 }
@@ -2596,5 +2616,234 @@ document.addEventListener('keydown', function(e){
     <button class="btn" style="width:100%" onclick="closeTechStageModal()">Close</button>
   </div>
 </div>
+
+<!-- ── SCAN IMPORT MODAL ── -->
+<div class="moverlay" id="scanModal" style="display:none;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:24px;max-width:600px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.22);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2 style="font-size:17px;font-weight:800;color:#1a2b44;">📷 Scan Tracking Grid</h2>
+      <button onclick="closeScanImport()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#8fa0b8;line-height:1;">×</button>
+    </div>
+
+    <!-- Step 1: Upload -->
+    <div id="scanStep1">
+      <p style="font-size:13px;color:#5a6a80;margin-bottom:14px;">Take a photo of a printed tracking grid or WIP list. Claude will extract the booking numbers and registrations automatically.</p>
+      <label id="scanDropZone" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;border:2px dashed #b0c4de;border-radius:10px;padding:32px 20px;cursor:pointer;background:#f8faff;transition:border-color 0.2s;" ondragover="event.preventDefault();this.style.borderColor='#0077cc';" ondragleave="this.style.borderColor='#b0c4de';" ondrop="handleScanDrop(event)">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0077cc" stroke-width="1.8"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 3H8l-2 4h12l-2-4z"/><circle cx="12" cy="14" r="3"/></svg>
+        <span style="font-size:14px;font-weight:700;color:#1a2b44;">Tap to select photo</span>
+        <span style="font-size:12px;color:#8fa0b8;">or drag & drop — JPG, PNG, WEBP</span>
+        <input type="file" id="scanFileInput" accept="image/*" capture="environment" style="display:none;" onchange="handleScanFile(this.files[0])">
+      </label>
+      <div id="scanPreviewWrap" style="display:none;margin-top:14px;text-align:center;">
+        <img id="scanPreviewImg" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid #dde3ed;" alt="Preview">
+        <div style="margin-top:10px;">
+          <button class="btn pr" onclick="runScanExtract()" id="scanExtractBtn" style="font-size:14px;">🔍 Extract Jobs</button>
+          <button class="btn" onclick="resetScanImport()" style="margin-left:8px;font-size:13px;">Change Photo</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Processing -->
+    <div id="scanStep2" style="display:none;text-align:center;padding:32px 0;">
+      <div id="scanSpinner" style="font-size:36px;animation:spin 1s linear infinite;display:inline-block;">⚙️</div>
+      <p style="margin-top:16px;font-size:14px;color:#5a6a80;" id="scanStatusTxt">Analysing image…</p>
+    </div>
+
+    <!-- Step 3: Review results -->
+    <div id="scanStep3" style="display:none;">
+      <p style="font-size:13px;color:#5a6a80;margin-bottom:12px;">Review extracted jobs. Untick any you don't want to import, or edit values before importing.</p>
+      <div id="scanResultsTable"></div>
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="btn pr" onclick="commitScanImport()" id="scanCommitBtn" style="font-size:14px;">✅ Import to Retail Board</button>
+        <button class="btn" onclick="resetScanImport()" style="font-size:13px;">← Try Again</button>
+        <span id="scanImportCount" style="font-size:12px;color:#8fa0b8;margin-left:auto;"></span>
+      </div>
+    </div>
+
+    <!-- Step 4: Done -->
+    <div id="scanStep4" style="display:none;text-align:center;padding:28px 0;">
+      <div style="font-size:48px;">✅</div>
+      <p style="font-size:16px;font-weight:700;color:#1a2b44;margin-top:12px;" id="scanDoneTxt">Jobs imported!</p>
+      <p style="font-size:13px;color:#5a6a80;margin-top:6px;">New jobs have been added to the Retail WIP board at Booking stage.</p>
+      <button class="btn pr" onclick="closeScanImport()" style="margin-top:18px;">View Board</button>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+#scanDropZone:hover{border-color:#0077cc;background:#f0f7ff;}
+.scan-row{display:grid;grid-template-columns:28px 110px 1fr 120px;gap:8px;align-items:center;padding:8px 6px;border-bottom:1px solid #edf0f5;font-size:13px;}
+.scan-row:first-child{font-weight:700;color:#5a6a80;font-size:11px;text-transform:uppercase;background:#f8faff;border-radius:6px 6px 0 0;}
+.scan-inp{border:1px solid #dde3ed;border-radius:5px;padding:4px 7px;font-size:13px;width:100%;font-family:Arial,sans-serif;}
+.scan-inp:focus{outline:none;border-color:#0077cc;}
+.scan-dupe{background:#fff3cd;border-radius:4px;padding:2px 6px;font-size:11px;color:#856404;font-weight:700;}
+</style>
+
+<script>
+// ── SCAN IMPORT ──────────────────────────────────────────────────────────────
+var _scanFile = null;
+var _scanResults = []; // [{wip, reg, skip, dupe}]
+
+function openScanImport(){
+  document.getElementById('scanModal').style.display='flex';
+  resetScanImport();
+}
+function closeScanImport(){
+  document.getElementById('scanModal').style.display='none';
+}
+
+function scanShowStep(n){
+  [1,2,3,4].forEach(function(i){
+    document.getElementById('scanStep'+i).style.display = i===n ? '' : 'none';
+  });
+}
+
+function resetScanImport(){
+  _scanFile=null; _scanResults=[];
+  document.getElementById('scanPreviewWrap').style.display='none';
+  document.getElementById('scanFileInput').value='';
+  document.getElementById('scanDropZone').style.display='flex';
+  scanShowStep(1);
+}
+
+function handleScanDrop(ev){
+  ev.preventDefault();
+  document.getElementById('scanDropZone').style.borderColor='#b0c4de';
+  var f=ev.dataTransfer.files[0];
+  if(f && f.type.startsWith('image/')) handleScanFile(f);
+}
+
+function handleScanFile(f){
+  if(!f) return;
+  _scanFile=f;
+  var url=URL.createObjectURL(f);
+  document.getElementById('scanPreviewImg').src=url;
+  document.getElementById('scanPreviewWrap').style.display='';
+  document.getElementById('scanDropZone').style.display='none';
+}
+
+function fileToBase64(file){
+  return new Promise(function(resolve,reject){
+    var r=new FileReader();
+    r.onload=function(){resolve(r.result.split(',')[1]);};
+    r.onerror=reject;
+    r.readAsDataURL(file);
+  });
+}
+
+async function runScanExtract(){
+  if(!_scanFile){alert('Please select a photo first.');return;}
+  scanShowStep(2);
+  document.getElementById('scanStatusTxt').textContent='Sending to Claude for analysis…';
+  try{
+    var b64=await fileToBase64(_scanFile);
+    var mt=_scanFile.type||'image/jpeg';
+    var prompt=[
+      "You are analysing a photo of a workshop or dealership tracking grid / WIP list.",
+      "Extract every row that contains a BOOKING/JOB NUMBER and a REGISTRATION PLATE.",
+      "Return ONLY a JSON array, no markdown, no explanation.",
+      "Each element: {\"wip\": \"57803\", \"reg\": \"WD17XPZ\"}",
+      "Rules:",
+      "- wip: the booking or job number (digits only, no prefix)",
+      "- reg: UK registration plate, uppercase, no spaces",
+      "- If a row has no reg plate visible, omit that row",
+      "- If a row has no booking number, omit that row",
+      "- Do NOT include header rows"
+    ].join('\n');
+    var resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:mt,data:b64}},
+          {type:'text',text:prompt}
+        ]}]
+      })
+    });
+    var data=await resp.json();
+    var raw=data.content.map(function(c){return c.text||'';}).join('');
+    // Strip any accidental markdown fences
+    raw=raw.replace(/```[a-z]*\n?/gi,'').trim();
+    var rows;
+    try{rows=JSON.parse(raw);}catch(e){
+      scanShowStep(1);
+      document.getElementById('scanPreviewWrap').style.display='';
+      document.getElementById('scanDropZone').style.display='none';
+      alert('Could not parse response. Please try a clearer photo.\n\nDetail: '+raw.substring(0,200));
+      return;
+    }
+    if(!Array.isArray(rows)||rows.length===0){
+      scanShowStep(1);
+      document.getElementById('scanPreviewWrap').style.display='';
+      document.getElementById('scanDropZone').style.display='none';
+      alert('No jobs found in this photo. Make sure the booking numbers and registration plates are visible and in focus.');
+      return;
+    }
+    // Mark duplicates
+    var existingRegs=(S.retailJobs||[]).map(function(j){return(j.reg||'').toUpperCase().replace(/\s/g,'');});
+    var existingWips=(S.retailJobs||[]).map(function(j){return(j.wipNo||'').trim();});
+    _scanResults=rows.map(function(r){
+      var reg=(r.reg||'').toUpperCase().replace(/\s/g,'');
+      var wip=(r.wip||'').toString().trim();
+      var dupe=existingRegs.indexOf(reg)!==-1||existingWips.indexOf(wip)!==-1;
+      return{wip:wip,reg:reg,skip:dupe,dupe:dupe};
+    });
+    renderScanResults();
+    scanShowStep(3);
+  }catch(err){
+    scanShowStep(1);
+    document.getElementById('scanPreviewWrap').style.display='';
+    document.getElementById('scanDropZone').style.display='none';
+    alert('Error communicating with Claude API: '+err.message);
+  }
+}
+
+function renderScanResults(){
+  var wrap=document.getElementById('scanResultsTable');
+  var html='<div class="scan-row"><span></span><span>WIP No.</span><span>Registration</span><span>Status</span></div>';
+  _scanResults.forEach(function(r,i){
+    html+='<div class="scan-row">'
+      +'<input type="checkbox" '+(r.skip?'':'checked')+' onchange="_scanResults['+i+'].skip=!this.checked;updateScanCount();" style="width:16px;height:16px;cursor:pointer;">'
+      +'<input class="scan-inp" value="'+escH(r.wip)+'" oninput="_scanResults['+i+'].wip=this.value.trim();" placeholder="WIP No.">'
+      +'<input class="scan-inp" value="'+escH(r.reg)+'" oninput="_scanResults['+i+'].reg=this.value.trim().toUpperCase();" placeholder="Reg" style="letter-spacing:1px;font-weight:700;">'
+      +(r.dupe?'<span class="scan-dupe">Already on board</span>':'<span style="font-size:11px;color:#27ae60;font-weight:700;">New</span>')
+      +'</div>';
+  });
+  wrap.innerHTML=html;
+  updateScanCount();
+}
+
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function updateScanCount(){
+  var n=_scanResults.filter(function(r){return!r.skip;}).length;
+  document.getElementById('scanImportCount').textContent=n+' job'+(n!==1?'s':'')+' selected to import';
+}
+
+function commitScanImport(){
+  var toAdd=_scanResults.filter(function(r){return!r.skip&&r.reg;});
+  if(!toAdd.length){alert('No jobs selected.');return;}
+  if(!S.retailJobs)S.retailJobs=[];
+  toAdd.forEach(function(r){
+    S.retailJobs.push({
+      id:uid(),
+      reg:r.reg.toUpperCase().replace(/\s/g,''),
+      wipNo:r.wip,
+      stage:'booking',
+      dateIn:new Date().toISOString().split('T')[0],
+      make:'',model:'',colour:'',veh:'',notes:'',flags:[],repCats:[]
+    });
+  });
+  save();
+  refreshAll();
+  document.getElementById('scanDoneTxt').textContent=toAdd.length+' job'+(toAdd.length!==1?'s':'')+' imported!';
+  scanShowStep(4);
+}
+// ── END SCAN IMPORT ──────────────────────────────────────────────────────────
+</script>
+
 </body>
 </html>
