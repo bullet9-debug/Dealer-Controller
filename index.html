@@ -105,8 +105,12 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 .board-toggle-btn.spr-on{background:#e8a100;color:#fff;border-color:#e8a100;}
 
 /* ── WIP STAGE HEADERS ── */
-.wstage-hdr{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:5px 5px 0 0;margin-top:11px;border:1px solid #d1d9e6;border-bottom:none;background:#f7f8fa;}
+.wstage-hdr{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:5px 5px 0 0;margin-top:11px;border:1px solid #d1d9e6;border-bottom:none;background:#f7f8fa;cursor:pointer;user-select:none;}
 .wstage-hdr:first-child{margin-top:0;}
+.wstage-hdr.collapsed{border-radius:5px;border-bottom:1px solid #d1d9e6;}
+.wstage-body.collapsed{display:none;}
+.wstage-chevron{font-size:10px;color:#8fa0b8;transition:transform 0.15s;margin-left:auto;}
+.wstage-hdr.collapsed .wstage-chevron{transform:rotate(-90deg);}
 .wstage-title{font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;flex:1;color:#1a2b44;}
 .wstage-cnt{background:#fff;border:1px solid #d1d9e6;border-radius:8px;padding:1px 7px;font-size:11px;color:#6b7c96;font-weight:700;}
 .wstage-body{border:1px solid #d1d9e6;border-radius:0 0 5px 5px;padding:6px;display:flex;flex-direction:column;gap:5px;margin-bottom:2px;background:#fff;}
@@ -1077,7 +1081,6 @@ function buildChaseItems(){
     if(es==='overdue')add('Handover date overdue — escalate to sales team','crit');
     if(j.stage==='wparts')add('PDI held — parts delayed','warn');
     if(es==='today')add('Handover today — confirm PDI complete','warn');
-    if(j.stage==='handover'&&days>=1)add('Handover ready '+days+'d — awaiting collection','info');
     if(es==='tomorrow')add('Handover tomorrow — PDI must complete today','info');
   });
   items.sort(function(a,b){var o={crit:0,warn:1,info:2};return(o[a.lv]||3)-(o[b.lv]||3);});
@@ -1182,6 +1185,17 @@ function filterRetailJobs(jobs){
   if(isTechView())jobs=jobs.filter(function(j){return j.techId===currentUser.techId;});
   return jobs;
 }
+/* ── Collapsible stage state (persists per session) ── */
+var _stageCollapsed = {};
+function toggleStage(boardPrefix, stageId){
+  var key = boardPrefix+'_'+stageId;
+  _stageCollapsed[key] = !_stageCollapsed[key];
+  if(boardPrefix==='r') renderRetail(); else renderSales();
+}
+function isCollapsed(boardPrefix, stageId){
+  return !!_stageCollapsed[boardPrefix+'_'+stageId];
+}
+
 function sortRetailJobs(jobs){
   var sort=document.getElementById('fSortR').value;
   return jobs.slice().sort(function(a,b){
@@ -1206,13 +1220,21 @@ function renderRetail(){
   var container=clr('wipListR');
   show.forEach(function(st){
     var jobs=sortRetailJobs(all.filter(function(j){return j.stage===st.id;}));
+    // Ready stage: oldest at the bottom (ascending dateIn)
+    if(st.id==='ready') jobs=jobs.slice().sort(function(a,b){
+      var da=a.dateIn?new Date(a.dateIn).getTime():0, db=b.dateIn?new Date(b.dateIn).getTime():0;
+      return da-db;
+    });
+    var collapsed=isCollapsed('r',st.id);
     var critN=jobs.filter(function(j){return scoreRetail(j).lv==='crit';}).length;
-    var hdr=mk('div','wstage-hdr '+st.sc);
+    var hdr=mk('div','wstage-hdr '+st.sc+(collapsed?' collapsed':''));
+    hdr.addEventListener('click',function(){toggleStage('r',st.id);});
     var title=mk('span','wstage-title');title.textContent=st.label;
     var cnt=mk('span','wstage-cnt');cnt.textContent=jobs.length+' job'+(jobs.length!==1?'s':'')+(critN?' · '+critN+' critical':'');
     if(critN)cnt.style.color='#c0392b';
-    app(hdr,title,cnt);container.appendChild(hdr);
-    var body=mk('div','wstage-body '+st.sc);
+    var chev=mk('span','wstage-chevron');chev.textContent='▼';
+    app(hdr,title,cnt,chev);container.appendChild(hdr);
+    var body=mk('div','wstage-body '+st.sc+(collapsed?' collapsed':''));
     if(!jobs.length){var empty=mk('div','wstage-empty');empty.textContent='No jobs';body.appendChild(empty);}
     else jobs.forEach(function(j){body.appendChild(makeRetailCard(j));});
     container.appendChild(body);
@@ -1301,13 +1323,16 @@ function renderSales(){
   var container=clr('wipListS');
   show.forEach(function(st){
     var jobs=sortSalesJobs(all.filter(function(j){return j.stage===st.id;}));
+    var collapsed=isCollapsed('s',st.id);
     var critN=jobs.filter(function(j){return scoreSales(j).lv==='crit';}).length;
-    var hdr=mk('div','wstage-hdr '+st.sc);
+    var hdr=mk('div','wstage-hdr '+st.sc+(collapsed?' collapsed':''));
+    hdr.addEventListener('click',function(){toggleStage('s',st.id);});
     var title=mk('span','wstage-title');title.textContent=st.label;
     var cnt=mk('span','wstage-cnt');cnt.textContent=jobs.length+' job'+(jobs.length!==1?'s':'')+(critN?' · '+critN+' critical':'');
     if(critN)cnt.style.color='#c0392b';
-    app(hdr,title,cnt);container.appendChild(hdr);
-    var body=mk('div','wstage-body '+st.sc);
+    var chev=mk('span','wstage-chevron');chev.textContent='▼';
+    app(hdr,title,cnt,chev);container.appendChild(hdr);
+    var body=mk('div','wstage-body '+st.sc+(collapsed?' collapsed':''));
     if(!jobs.length){var empty=mk('div','wstage-empty');empty.textContent='No PDI jobs';body.appendChild(empty);}
     else jobs.forEach(function(j){body.appendChild(makeSalesCard(j));});
     container.appendChild(body);
