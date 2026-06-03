@@ -1427,6 +1427,7 @@ function clearModal(){
 
 function fillJobData(job){
   document.getElementById('fReg').value=job.reg||'';
+  onRegInput();
   document.getElementById('fMake').value=job.make||(job.veh?job.veh.split(' ')[0]||'':'');
   document.getElementById('fModel').value=job.model||(job.veh?job.veh.split(' ').slice(1,3).join(' ')||'':'');
   document.getElementById('fColour').value=job.colour||'';
@@ -1986,12 +1987,23 @@ function renderDVLAKeyStatus(){var key=getDVLAKey();var st=document.getElementBy
 function onRegInput(){
   var reg=document.getElementById('fReg').value.trim().toUpperCase().replace(/\s/g,'');
   var row=document.getElementById('dvlaRow');var btn=document.getElementById('dvlaBtn');
-  if(reg.length>=2&&getDVLAKey()){
+  if(reg.length>=5&&getDVLAKey()){
     row.style.display='block';
     var cache=getDVLACache();
-    if(cache[reg]){populateDVLAResult(cache[reg],true);}
-    else{document.getElementById('dvlaStatus').style.display='none';document.getElementById('dvlaDetail').innerHTML='';btn.disabled=false;}
-  }else row.style.display='none';
+    if(cache[reg]){
+      populateDVLAResult(cache[reg],true);
+    } else if(reg.length>=6){
+      // Full reg entered — auto-lookup
+      document.getElementById('dvlaStatus').style.display='none';
+      document.getElementById('dvlaDetail').innerHTML='';
+      btn.disabled=false;
+      lookupDVLA();
+    } else {
+      document.getElementById('dvlaStatus').style.display='none';
+      document.getElementById('dvlaDetail').innerHTML='';
+      btn.disabled=false;
+    }
+  } else row.style.display='none';
 }
 
 function lookupDVLA(){
