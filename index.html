@@ -285,6 +285,45 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 .handover-box-title{font-size:12px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#003087;margin-bottom:8px;}
 .handover-textarea{width:100%;min-height:180px;background:#f7f8fa;border:1px solid #d1d9e6;border-radius:3px;padding:10px;font-family:monospace;font-size:11px;color:#1a2b44;line-height:1.5;resize:vertical;}
 
+/* ── EOD ACTION BAR ── */
+.eod-action-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;background:#fff;border:1px solid #d1d9e6;border-radius:6px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
+.eod-action-bar-title{font-size:13px;font-weight:700;color:#1a2b44;flex:1;white-space:nowrap;}
+.eod-wip-search{background:#f7f8fa;border:1px solid #d1d9e6;color:#1a2b44;font-size:13px;padding:7px 10px;border-radius:3px;width:180px;}
+.eod-wip-search:focus{outline:none;border-color:#003087;background:#fff;}
+.eod-wip-result{background:#fff;border:1px solid #003087;border-radius:5px;padding:10px 14px;margin-bottom:12px;display:none;}
+.eod-wip-result.show{display:block;}
+.eod-wip-result-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#003087;margin-bottom:8px;}
+.eod-wip-hit{background:#f7f8fa;border:1px solid #d1d9e6;border-radius:3px;padding:7px 10px;margin-bottom:4px;font-size:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.eod-wip-hit-reg{font-weight:800;color:#1a2b44;min-width:80px;}
+.eod-wip-hit-board{font-size:10px;font-weight:700;padding:2px 6px;border-radius:2px;}
+.eod-wip-none{color:#8fa0b8;font-size:12px;font-style:italic;}
+
+/* ── WEEKLY ARCHIVE ── */
+.weekly-archive-box{background:#fff;border:1px solid #d1d9e6;border-radius:6px;margin-top:16px;box-shadow:0 1px 3px rgba(0,0,0,0.05);overflow:hidden;}
+.weekly-archive-hdr{background:#1a2b44;padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;}
+.weekly-archive-hdr-title{font-size:13px;font-weight:700;color:#fff;flex:1;}
+.weekly-archive-hdr-sub{font-size:11px;color:rgba(255,255,255,0.6);}
+.weekly-archive-chev{font-size:11px;color:rgba(255,255,255,0.5);transition:transform 0.2s;}
+.weekly-archive-box.cl .weekly-archive-chev{transform:rotate(-90deg);}
+.weekly-archive-box.cl .weekly-archive-body{display:none;}
+.weekly-archive-body{padding:10px 14px 14px;}
+.weekly-entry{background:#f7f8fa;border:1px solid #d1d9e6;border-radius:4px;margin-bottom:6px;overflow:hidden;}
+.weekly-entry-hdr{padding:8px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;background:#f7f8fa;}
+.weekly-entry-hdr:hover{background:#eef0f4;}
+.weekly-entry-label{font-size:12px;font-weight:700;color:#1a2b44;flex:1;}
+.weekly-entry-meta{font-size:11px;color:#8fa0b8;}
+.weekly-entry-dl{background:#003087;color:#fff;border:none;font-size:11px;font-weight:700;padding:4px 10px;border-radius:3px;cursor:pointer;white-space:nowrap;}
+.weekly-entry-dl:hover{background:#001f5c;}
+.weekly-entry-body{border-top:1px solid #d1d9e6;padding:8px 12px;display:none;}
+.weekly-entry-body.open{display:block;}
+.weekly-tech-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dotted #e8edf5;font-size:12px;}
+.weekly-tech-row:last-child{border-bottom:none;}
+.weekly-tech-name{font-weight:700;color:#1a2b44;min-width:110px;}
+.weekly-tech-stat{color:#6b7c96;}
+.weekly-tech-hrs{font-weight:700;color:#1a5276;min-width:60px;text-align:right;}
+.weekly-tech-jobs{font-size:11px;color:#8fa0b8;}
+.weekly-empty{color:#8fa0b8;font-size:12px;font-style:italic;padding:8px 0;}
+
 /* ── SETTINGS ── */
 .setgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;max-width:1200px;}
 .setcard{background:#fff;border:1px solid #d1d9e6;border-radius:6px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
@@ -1700,6 +1739,380 @@ function addAction(){
 }
 
 /* ═══════════════════════════════════════════
+   WEEKLY ARCHIVE — localStorage key: dwc_weekly
+═══════════════════════════════════════════ */
+var WEEKLY_SK = 'dwc_weekly';
+
+function getWeekKey(date){
+  // Returns 'YYYY-Www' for the week starting on the Sunday on or before `date`
+  var d = date ? new Date(date) : new Date();
+  var day = d.getDay(); // 0=Sun
+  var sun = new Date(d);
+  sun.setDate(d.getDate() - day);
+  var y = sun.getFullYear();
+  // ISO-like week number based on Sunday start
+  var start = new Date(y, 0, 1);
+  var startDay = start.getDay();
+  var firstSun = new Date(start);
+  firstSun.setDate(1 - startDay);
+  var weekNum = Math.floor((sun - firstSun) / (7*24*3600*1000)) + 1;
+  return y + '-W' + String(weekNum).padStart(2,'0');
+}
+
+function getWeekLabel(weekKey){
+  // Convert week key back to a readable 'Sun DD/MM – Sat DD/MM YYYY'
+  var parts = weekKey.match(/^(\d{4})-W(\d+)$/);
+  if(!parts) return weekKey;
+  var y = parseInt(parts[1]);
+  var w = parseInt(parts[2]);
+  var start = new Date(y, 0, 1);
+  var startDay = start.getDay();
+  var firstSun = new Date(start);
+  firstSun.setDate(1 - startDay);
+  var sun = new Date(firstSun.getTime() + (w-1)*7*24*3600*1000);
+  var sat = new Date(sun.getTime() + 6*24*3600*1000);
+  function fmt(d){return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getFullYear()).slice(2);}
+  return 'Week ' + String(w) + '  (' + fmt(sun) + ' – ' + fmt(sat) + ')';
+}
+
+function loadWeeklyArchive(){
+  try{ return JSON.parse(localStorage.getItem(WEEKLY_SK)||'{}'); }catch(e){ return {}; }
+}
+function saveWeeklyArchive(arch){
+  try{ localStorage.setItem(WEEKLY_SK, JSON.stringify(arch)); }catch(e){}
+}
+
+// Called at Sunday midnight and also on each EOD render to make sure today's snapshot is current
+function snapshotWeeklyData(){
+  var arch = loadWeeklyArchive();
+  var wk = getWeekKey();
+  var today = new Date().toISOString().split('T')[0];
+
+  // Build per-tech summary grouped by retail / sales for today
+  var techMap = {};
+  (S.set.tech||[]).forEach(function(t){ techMap[t.id]={name:t.name,retailHrs:0,salesHrs:0,retailJobs:0,salesJobs:0}; });
+
+  S.retailJobs.forEach(function(j){
+    if(j.techId && techMap[j.techId]){
+      techMap[j.techId].retailHrs += parseFloat(j.labHrs)||0;
+      techMap[j.techId].retailJobs += 1;
+    }
+  });
+  S.salesJobs.forEach(function(j){
+    if(j.techId && techMap[j.techId]){
+      techMap[j.techId].salesHrs += parseFloat(j.labHrs)||0;
+      techMap[j.techId].salesJobs += 1;
+    }
+  });
+
+  if(!arch[wk]) arch[wk] = {days:{}};
+  arch[wk].days[today] = {
+    techMap: techMap,
+    retailTotal: S.retailJobs.length,
+    salesTotal: S.salesJobs.length,
+    ts: new Date().toISOString()
+  };
+  saveWeeklyArchive(arch);
+  return arch;
+}
+
+// Roll weekly totals across all days in a week entry
+function rollWeekTotals(weekEntry){
+  var totals = {}; // techId -> {name,retailHrs,salesHrs,retailJobs,salesJobs}
+  Object.values(weekEntry.days||{}).forEach(function(daySnap){
+    Object.keys(daySnap.techMap||{}).forEach(function(tid){
+      var d = daySnap.techMap[tid];
+      if(!totals[tid]) totals[tid] = {name:d.name,retailHrs:0,salesHrs:0,retailJobs:0,salesJobs:0};
+      // Use max across days (avoids double-counting open jobs)
+      totals[tid].retailHrs = Math.max(totals[tid].retailHrs, d.retailHrs);
+      totals[tid].salesHrs  = Math.max(totals[tid].salesHrs,  d.salesHrs);
+      totals[tid].retailJobs= Math.max(totals[tid].retailJobs, d.retailJobs);
+      totals[tid].salesJobs = Math.max(totals[tid].salesJobs,  d.salesJobs);
+    });
+  });
+  return totals;
+}
+
+// Auto-snapshot at Sunday midnight via interval check
+(function(){
+  function checkSundayRollover(){
+    var now = new Date();
+    // If it is Sunday and within the first minute of midnight
+    if(now.getDay()===0 && now.getHours()===0 && now.getMinutes()===0){
+      snapshotWeeklyData();
+    }
+  }
+  setInterval(checkSundayRollover, 60000);
+})();
+
+/* ═══════════════════════════════════════════
+   PDF GENERATION
+═══════════════════════════════════════════ */
+function generateEODPdf(){
+  var doc = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  var pw = doc.internal.pageSize.getWidth();
+  var ph = doc.internal.pageSize.getHeight();
+  var margin = 14;
+  var y = margin;
+  var now = new Date();
+  var dateStr = now.toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  var timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+
+  function checkPage(needed){
+    if(y + needed > ph - margin){ doc.addPage(); y = margin; }
+  }
+
+  function hline(col){
+    col = col||'#d1d9e6';
+    var rgb = hexToRgb(col);
+    doc.setDrawColor(rgb[0],rgb[1],rgb[2]);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pw-margin, y);
+    y += 3;
+  }
+
+  function hexToRgb(h){
+    h=h.replace('#','');
+    return[parseInt(h.substr(0,2),16),parseInt(h.substr(2,2),16),parseInt(h.substr(4,2),16)];
+  }
+
+  function sectionBanner(title, hexBg){
+    checkPage(10);
+    var rgb = hexToRgb(hexBg||'#003087');
+    doc.setFillColor(rgb[0],rgb[1],rgb[2]);
+    doc.roundedRect(margin, y, pw-margin*2, 8, 1, 1, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(10);
+    doc.setTextColor(255,255,255);
+    doc.text(title, margin+3, y+5.5);
+    doc.setTextColor(0,0,0);
+    y += 11;
+  }
+
+  function subTitle(title, col){
+    checkPage(8);
+    col = col||'#6b7c96';
+    var rgb = hexToRgb(col);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    doc.setTextColor(rgb[0],rgb[1],rgb[2]);
+    doc.text(title.toUpperCase(), margin, y);
+    y += 5;
+  }
+
+  function statRow(pairs){
+    // pairs: [{label,value,col}]
+    checkPage(10);
+    var colW = (pw - margin*2) / pairs.length;
+    pairs.forEach(function(p,i){
+      var x = margin + i*colW;
+      var rgb = hexToRgb(p.col||'#1a2b44');
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(16);
+      doc.setTextColor(rgb[0],rgb[1],rgb[2]);
+      doc.text(String(p.value), x + colW/2, y+6, {align:'center'});
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(7);
+      doc.setTextColor(120,130,150);
+      doc.text((p.label||'').toUpperCase(), x + colW/2, y+11, {align:'center'});
+    });
+    y += 14;
+  }
+
+  function jobTable(jobs, cols){
+    if(!jobs.length) return;
+    checkPage(10);
+    var headers = cols.map(function(c){return {content:c.header,styles:{fillColor:[0,48,135],textColor:[255,255,255],fontStyle:'bold',fontSize:8}};});
+    var rows = jobs.map(function(j){
+      return cols.map(function(c){ return {content: String(c.fn(j)||''), styles:{fontSize:8}}; });
+    });
+    doc.autoTable({
+      head: [headers],
+      body: rows,
+      startY: y,
+      margin: {left:margin, right:margin},
+      styles: {cellPadding:2, fontSize:8, valign:'middle'},
+      alternateRowStyles: {fillColor:[247,248,250]},
+      headStyles:{fillColor:[0,48,135]},
+      didDrawPage: function(data){ y = data.cursor.y + 3; }
+    });
+    y = doc.lastAutoTable.finalY + 4;
+  }
+
+  function insightBox(items, col){
+    if(!items.length) return;
+    checkPage(items.length*6+8);
+    var rgb = hexToRgb(col||'#003087');
+    doc.setFillColor(rgb[0]+40>255?255:rgb[0]+40, rgb[1]+40>255?255:rgb[1]+40, rgb[2]+40>255?255:rgb[2]+40);
+    doc.setDrawColor(rgb[0],rgb[1],rgb[2]);
+    doc.setLineWidth(0.4);
+    var boxH = items.length*5.5+6;
+    doc.roundedRect(margin, y, pw-margin*2, boxH, 1,1,'FD');
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    doc.setTextColor(rgb[0]-20<0?0:rgb[0]-20, rgb[1]-20<0?0:rgb[1]-20, rgb[2]-20<0?0:rgb[2]-20);
+    items.forEach(function(item,i){
+      doc.text('— ' + item, margin+3, y+5+i*5.5);
+    });
+    doc.setTextColor(0,0,0);
+    y += boxH + 4;
+  }
+
+  // ── HEADER ──
+  doc.setFillColor(0,48,135);
+  doc.rect(0,0,pw,18,'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(13);
+  doc.setTextColor(255,255,255);
+  doc.text('DEALER WORKSHOP CONTROLLER', margin, 10);
+  doc.setFontSize(9);
+  doc.setFont('helvetica','normal');
+  doc.text('End of Day Report  •  ' + dateStr + '  •  Generated ' + timeStr, margin, 15);
+  doc.setTextColor(0,0,0);
+  y = 24;
+
+  var rJobs=S.retailJobs; var sJobs=S.salesJobs;
+  var rReady=rJobs.filter(function(j){return j.stage==='ready';});
+  var rCrit=rJobs.filter(function(j){return scoreRetail(j).lv==='crit';});
+  var rParts=rJobs.filter(function(j){return(j.flags||[]).indexOf('parts')!==-1;});
+  var rWAuth=rJobs.filter(function(j){return j.stage==='wauth';});
+  var rLoan=rJobs.filter(function(j){return(j.flags||[]).indexOf('loan')!==-1;});
+  var rOv=rJobs.filter(function(j){return j.eta&&new Date(j.eta)<new Date()&&j.stage!=='ready';});
+  var sHover=sJobs.filter(function(j){return j.stage==='handover';});
+  var sParts=sJobs.filter(function(j){return j.stage==='wparts';});
+  var sOv=sJobs.filter(function(j){return j.eta&&new Date(j.eta)<new Date()&&j.stage!=='handover';});
+
+  // ── RETAIL ──
+  sectionBanner('RETAIL WORKSHOP','#003087');
+  statRow([
+    {label:'Live Jobs',  value:rJobs.length,  col:rJobs.length>0?'#003087':'#6b7c96'},
+    {label:'Ready',      value:rReady.length, col:rReady.length>0?'#1e8449':'#6b7c96'},
+    {label:'Critical',   value:rCrit.length,  col:rCrit.length>0?'#c0392b':'#1e8449'},
+    {label:'Loan Cars',  value:rLoan.length,  col:rLoan.length>0?'#d68910':'#6b7c96'},
+    {label:'Parts Held', value:rParts.length, col:rParts.length>0?'#d68910':'#6b7c96'},
+    {label:'Auth Held',  value:rWAuth.length, col:rWAuth.length>0?'#d68910':'#6b7c96'}
+  ]);
+
+  var rInsights=[];
+  if(rOv.length) rInsights.push(rOv.length+' job'+(rOv.length!==1?'s':'')+' past promised date carrying over.');
+  if(rLoan.length){var mx=Math.max.apply(null,rLoan.map(function(j){return j.dateIn?Math.floor((Date.now()-new Date(j.dateIn))/86400000):0;}));rInsights.push('Longest loan car tenure: '+mx+' days.');}
+  if(rWAuth.length) rInsights.push(rWAuth.length+' job'+(rWAuth.length!==1?'s':'')+' awaiting warranty auth — chase tomorrow.');
+  var rTotVal=rJobs.filter(function(j){return j.value>0;}).reduce(function(a,j){return a+(j.value||0);},0);
+  if(rTotVal>0) rInsights.push('Total retail job value on board: £'+rTotVal.toLocaleString()+'.');
+  insightBox(rInsights,'#003087');
+
+  if(rJobs.length){
+    subTitle('All Retail Jobs');
+    jobTable(rJobs,[
+      {header:'Reg',   fn:function(j){return j.reg||'?';}},
+      {header:'WIP',   fn:function(j){return j.wipNo||'';}},
+      {header:'Make/Model',fn:function(j){return [j.make,j.model].filter(Boolean).join(' ')||j.veh||'';}},
+      {header:'Stage', fn:function(j){return RETAIL_STAGE_LABELS[j.stage]||j.stage;}},
+      {header:'Tech',  fn:function(j){var t=S.set.tech.find(function(t){return t.id===j.techId;});return t?t.name:'';}},
+      {header:'Hrs',   fn:function(j){return j.labHrs?(parseFloat(j.labHrs)||0).toFixed(1):'';}},
+      {header:'Days',  fn:function(j){return j.dateIn?String(Math.floor((Date.now()-new Date(j.dateIn))/86400000)):'';}}
+    ]);
+  }
+
+  // ── TECHNICIAN HOURS ──
+  checkPage(14);
+  sectionBanner('TECHNICIAN HOURS — RETAIL & SALES COMBINED','#1a5276');
+  var techMap={};
+  (S.set.tech||[]).forEach(function(t){techMap[t.id]={name:t.name,retailHrs:0,salesHrs:0,retailJobs:0,salesJobs:0};});
+  S.retailJobs.forEach(function(j){if(j.techId&&techMap[j.techId]){techMap[j.techId].retailHrs+=parseFloat(j.labHrs)||0;techMap[j.techId].retailJobs+=1;}});
+  S.salesJobs.forEach(function(j){if(j.techId&&techMap[j.techId]){techMap[j.techId].salesHrs+=parseFloat(j.labHrs)||0;techMap[j.techId].salesJobs+=1;}});
+
+  var techRows=Object.values(techMap).filter(function(t){return t.retailJobs+t.salesJobs>0;});
+  if(techRows.length){
+    doc.autoTable({
+      head:[[
+        {content:'Technician',styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold'}},
+        {content:'Retail Jobs',styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold'}},
+        {content:'Retail Hrs',styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold'}},
+        {content:'Sales/PDI Jobs',styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold'}},
+        {content:'Sales/PDI Hrs',styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold'}},
+        {content:'Total Hrs',styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold'}}
+      ]],
+      body:techRows.map(function(t){
+        var tot=(t.retailHrs+t.salesHrs).toFixed(1);
+        return[t.name, t.retailJobs, t.retailHrs.toFixed(1), t.salesJobs, t.salesHrs.toFixed(1),
+          {content:tot, styles:{fontStyle:'bold',textColor:[26,82,118]}}
+        ];
+      }),
+      startY:y,
+      margin:{left:margin,right:margin},
+      styles:{cellPadding:2.5,fontSize:8,valign:'middle'},
+      alternateRowStyles:{fillColor:[247,248,250]},
+      didDrawPage:function(data){y=data.cursor.y+3;}
+    });
+    y = doc.lastAutoTable.finalY + 6;
+  } else {
+    checkPage(8);
+    doc.setFont('helvetica','italic'); doc.setFontSize(8); doc.setTextColor(140,150,165);
+    doc.text('No technician hours logged.',margin,y); y+=8;
+    doc.setTextColor(0,0,0);
+  }
+
+  // ── SALES / PDI ──
+  checkPage(12);
+  sectionBanner('SALES / PDI','#c17f00');
+  statRow([
+    {label:'Live PDI',    value:sJobs.length,   col:sJobs.length>0?'#003087':'#6b7c96'},
+    {label:'H/O Ready',   value:sHover.length,  col:sHover.length>0?'#1e8449':'#6b7c96'},
+    {label:'Parts Held',  value:sParts.length,  col:sParts.length>0?'#d68910':'#6b7c96'},
+    {label:'Overdue',     value:sOv.length,     col:sOv.length>0?'#c0392b':'#1e8449'}
+  ]);
+
+  var sInsights=[];
+  if(sHover.length) sInsights.push(sHover.length+' vehicle'+(sHover.length!==1?'s':'')+' handover-ready — confirm with sales team.');
+  if(sOv.length) sInsights.push(sOv.length+' PDI job'+(sOv.length!==1?'s':'')+' past handover date — escalate.');
+  insightBox(sInsights,'#c17f00');
+
+  if(sJobs.length){
+    subTitle('All Sales / PDI Jobs');
+    jobTable(sJobs,[
+      {header:'Reg',   fn:function(j){return j.reg||'?';}},
+      {header:'WIP',   fn:function(j){return j.wipNo||'';}},
+      {header:'Make/Model',fn:function(j){return [j.make,j.model].filter(Boolean).join(' ')||j.veh||'';}},
+      {header:'Stage', fn:function(j){return SALES_STAGE_LABELS[j.stage]||j.stage;}},
+      {header:'Tech',  fn:function(j){var t=S.set.tech.find(function(t){return t.id===j.techId;});return t?t.name:'';}},
+      {header:'Hrs',   fn:function(j){return j.labHrs?(parseFloat(j.labHrs)||0).toFixed(1):'';}},
+      {header:'Days',  fn:function(j){return j.dateIn?String(Math.floor((Date.now()-new Date(j.dateIn))/86400000)):'';}}
+    ]);
+  }
+
+  // ── HANDOVER NOTE ──
+  checkPage(14);
+  sectionBanner('SHIFT HANDOVER NOTE','#4a5f7a');
+  var hvLines = buildHandover().split('\n');
+  doc.setFont('courier','normal');
+  doc.setFontSize(7);
+  doc.setTextColor(40,50,65);
+  hvLines.forEach(function(line){
+    checkPage(5);
+    doc.text(line, margin, y);
+    y += 4;
+  });
+
+  // ── FOOTER ──
+  var pages = doc.internal.getNumberOfPages();
+  for(var p=1;p<=pages;p++){
+    doc.setPage(p);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7);
+    doc.setTextColor(160,170,185);
+    doc.text('Dealer Workshop Controller  •  EOD ' + dateStr, margin, ph-6);
+    doc.text('Page '+p+' of '+pages, pw-margin, ph-6, {align:'right'});
+  }
+
+  var filename = 'EOD-' + new Date().toISOString().slice(0,10) + '.pdf';
+  doc.save(filename);
+
+  // Also snapshot weekly after generating PDF
+  snapshotWeeklyData();
+}
+
+/* ═══════════════════════════════════════════
    EOD REPORT
 ═══════════════════════════════════════════ */
 function renderEOD(){
@@ -1714,6 +2127,30 @@ function renderEOD(){
   var tgt=S.brief.target||10;
   var sHover=sJobs.filter(function(j){return j.stage==='handover';});
   var sParts=sJobs.filter(function(j){return j.stage==='wparts';});
+
+  // Snapshot weekly data on every EOD view
+  snapshotWeeklyData();
+
+  /* ── ACTION BAR: PDF Download + WIP Search ── */
+  var abar = mk('div','eod-action-bar');
+  var abarTitle = mk('span','eod-action-bar-title');
+  abarTitle.textContent = 'End of Day Report';
+  var pdfBtn = mk('button','btn pr');
+  pdfBtn.innerHTML = '⬇ Download PDF';
+  pdfBtn.addEventListener('click', generateEODPdf);
+  var wipSearchWrap = mk('div');wipSearchWrap.style.display='flex';wipSearchWrap.style.gap='6px';wipSearchWrap.style.alignItems='center';
+  var wipSearchLbl = mk('span');wipSearchLbl.style.cssText='font-size:12px;color:#6b7c96;white-space:nowrap;';wipSearchLbl.textContent='WIP Search:';
+  var wipSearch = mk('input','eod-wip-search');wipSearch.placeholder='Enter WIP No…';wipSearch.id='eodWipSearch';
+  wipSearch.setAttribute('autocomplete','off');
+  wipSearch.addEventListener('input',function(){ searchWipEOD(this.value.trim()); });
+  app(wipSearchWrap,wipSearchLbl,wipSearch);
+  app(abar,abarTitle,pdfBtn,wipSearchWrap);
+  container.appendChild(abar);
+
+  /* WIP Search Results Panel */
+  var wipResult = mk('div','eod-wip-result');
+  wipResult.id='eodWipResult';
+  container.appendChild(wipResult);
 
   /* Retail section header */
   var rHdr=mk('div','eod-section-hdr retail');rHdr.textContent='Retail Workshop';container.appendChild(rHdr);
@@ -1869,6 +2306,241 @@ function renderEOD(){
   copyBtn.addEventListener('click',function(){hta.select();document.execCommand('copy');copyBtn.textContent='Copied!';setTimeout(function(){copyBtn.textContent='Copy Handover';},2000);});
   var prBtn=mk('button','btn');prBtn.textContent='Print';prBtn.addEventListener('click',function(){window.print();});
   app(hrow,copyBtn,prBtn);hbox.appendChild(hrow);container.appendChild(hbox);
+
+  /* ── WEEKLY ARCHIVE PANEL ── */
+  renderWeeklyArchivePanel(container);
+}
+
+function renderWeeklyArchivePanel(container){
+  var arch = loadWeeklyArchive();
+  var weekKeys = Object.keys(arch).sort().reverse(); // newest first
+
+  var box = mk('div','weekly-archive-box cl');
+  var hdr = mk('div','weekly-archive-hdr');
+  hdr.addEventListener('click',function(){ box.classList.toggle('cl'); });
+  var htitle = mk('span','weekly-archive-hdr-title');
+  htitle.textContent = '📁 Weekly Hours & Jobs Archive';
+  var hsub = mk('span','weekly-archive-hdr-sub');
+  hsub.textContent = weekKeys.length + ' week'+(weekKeys.length!==1?'s':'')+' stored';
+  var hchev = mk('span','weekly-archive-chev');
+  hchev.textContent = '▾';
+  app(hdr, htitle, hsub, hchev);
+  box.appendChild(hdr);
+
+  var body = mk('div','weekly-archive-body');
+
+  if(!weekKeys.length){
+    var empty = mk('div','weekly-empty');
+    empty.textContent = 'No weekly data yet. Archives build automatically each Sunday at midnight and whenever you generate an EOD PDF.';
+    body.appendChild(empty);
+  } else {
+    weekKeys.forEach(function(wk){
+      var entry = arch[wk];
+      var totals = rollWeekTotals(entry);
+      var techList = Object.values(totals).filter(function(t){return t.retailJobs+t.salesJobs>0;});
+      var totalRetailHrs = techList.reduce(function(a,t){return a+t.retailHrs;},0);
+      var totalSalesHrs  = techList.reduce(function(a,t){return a+t.salesHrs;},0);
+      var totalRetailJobs= techList.reduce(function(a,t){return a+t.retailJobs;},0);
+      var totalSalesJobs = techList.reduce(function(a,t){return a+t.salesJobs;},0);
+      var isCurrentWeek  = wk === getWeekKey();
+
+      var we = mk('div','weekly-entry');
+      var weHdr = mk('div','weekly-entry-hdr');
+      var weLabel = mk('span','weekly-entry-label');
+      weLabel.textContent = getWeekLabel(wk) + (isCurrentWeek?' ● Current Week':'');
+      if(isCurrentWeek) weLabel.style.color='#003087';
+      var weMeta = mk('span','weekly-entry-meta');
+      weMeta.textContent = (totalRetailHrs+totalSalesHrs).toFixed(1)+'h total · '+(totalRetailJobs+totalSalesJobs)+' jobs';
+      var weDl = mk('button','weekly-entry-dl');
+      weDl.textContent = '⬇ PDF';
+      weDl.title = 'Download weekly summary PDF';
+      (function(weekKey, weekLabel, techTotals, rHrs, sHrs, rJobs, sJobs){
+        weDl.addEventListener('click',function(e){
+          e.stopPropagation();
+          generateWeeklyPdf(weekKey, weekLabel, techTotals, rHrs, sHrs, rJobs, sJobs);
+        });
+      })(wk, getWeekLabel(wk), techList, totalRetailHrs, totalSalesHrs, totalRetailJobs, totalSalesJobs);
+
+      var weBody = mk('div','weekly-entry-body');
+      var weChev = mk('span','weekly-archive-chev');weChev.textContent='▾';weChev.style.color='#8fa0b8';
+      weHdr.addEventListener('click',function(){ weBody.classList.toggle('open'); weChev.style.transform=weBody.classList.contains('open')?'':'rotate(-90deg)'; });
+
+      if(techList.length){
+        techList.forEach(function(t){
+          var row=mk('div','weekly-tech-row');
+          var nm=mk('span','weekly-tech-name');nm.textContent=t.name;
+          var retailBit=mk('span','weekly-tech-stat');retailBit.innerHTML='<span style="color:#003087;font-weight:700;">'+t.retailHrs.toFixed(1)+'h</span> retail ('+t.retailJobs+' job'+(t.retailJobs!==1?'s':'')+')';
+          var salesBit=mk('span','weekly-tech-stat');salesBit.innerHTML='<span style="color:#c17f00;font-weight:700;">'+t.salesHrs.toFixed(1)+'h</span> PDI ('+t.salesJobs+' job'+(t.salesJobs!==1?'s':'')+')';
+          var totalBit=mk('span','weekly-tech-hrs');totalBit.textContent=(t.retailHrs+t.salesHrs).toFixed(1)+'h';
+          app(row,nm,retailBit,salesBit,totalBit);
+          weBody.appendChild(row);
+        });
+        // Summary row
+        var sumRow=mk('div','weekly-tech-row');sumRow.style.borderTop='2px solid #d1d9e6';sumRow.style.marginTop='4px';sumRow.style.paddingTop='6px';
+        var sumNm=mk('span','weekly-tech-name');sumNm.textContent='TOTAL';sumNm.style.fontWeight='900';
+        var sumR=mk('span','weekly-tech-stat');sumR.innerHTML='<span style="color:#003087;font-weight:700;">'+totalRetailHrs.toFixed(1)+'h</span> retail ('+totalRetailJobs+' jobs)';
+        var sumS=mk('span','weekly-tech-stat');sumS.innerHTML='<span style="color:#c17f00;font-weight:700;">'+totalSalesHrs.toFixed(1)+'h</span> PDI ('+totalSalesJobs+' jobs)';
+        var sumT=mk('span','weekly-tech-hrs');sumT.style.fontWeight='900';sumT.style.color='#1a2b44';sumT.textContent=(totalRetailHrs+totalSalesHrs).toFixed(1)+'h';
+        app(sumRow,sumNm,sumR,sumS,sumT);
+        weBody.appendChild(sumRow);
+      } else {
+        var noData=mk('div','weekly-empty');noData.textContent='No technician hours in this week.';
+        weBody.appendChild(noData);
+      }
+
+      app(weHdr, weLabel, weMeta, weChev, weDl);
+      app(we, weHdr, weBody);
+      body.appendChild(we);
+    });
+  }
+
+  box.appendChild(body);
+  container.appendChild(box);
+}
+
+function generateWeeklyPdf(weekKey, weekLabel, techList, totalRetailHrs, totalSalesHrs, totalRetailJobs, totalSalesJobs){
+  var doc = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  var pw = doc.internal.pageSize.getWidth();
+  var ph = doc.internal.pageSize.getHeight();
+  var margin = 14;
+  var y = margin;
+
+  function hexToRgb(h){h=h.replace('#','');return[parseInt(h.substr(0,2),16),parseInt(h.substr(2,2),16),parseInt(h.substr(4,2),16)];}
+
+  // Header
+  doc.setFillColor(0,48,135);
+  doc.rect(0,0,pw,18,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(255,255,255);
+  doc.text('DEALER WORKSHOP CONTROLLER', margin, 10);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');
+  doc.text('Weekly Hours & Jobs Summary  •  ' + weekLabel, margin, 15);
+  doc.setTextColor(0,0,0);
+  y = 24;
+
+  // Summary stats box
+  doc.setFillColor(247,248,250);doc.setDrawColor(209,217,230);doc.setLineWidth(0.3);
+  doc.roundedRect(margin,y,pw-margin*2,22,1,1,'FD');
+  var cols4 = (pw-margin*2)/4;
+  var stats=[
+    {label:'Retail Hours',   value:totalRetailHrs.toFixed(1),  col:'#003087'},
+    {label:'Retail Jobs',    value:totalRetailJobs,            col:'#003087'},
+    {label:'Sales/PDI Hours',value:totalSalesHrs.toFixed(1),   col:'#c17f00'},
+    {label:'Sales/PDI Jobs', value:totalSalesJobs,             col:'#c17f00'}
+  ];
+  stats.forEach(function(s,i){
+    var x=margin+i*cols4+cols4/2;
+    var rgb=hexToRgb(s.col);
+    doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(rgb[0],rgb[1],rgb[2]);
+    doc.text(String(s.value),x,y+10,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(120,130,150);
+    doc.text(s.label.toUpperCase(),x,y+17,{align:'center'});
+  });
+  doc.setTextColor(0,0,0);
+  y += 28;
+
+  // Per-tech table
+  if(techList.length){
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(26,82,118);
+    doc.text('TECHNICIAN BREAKDOWN — RETAIL VS SALES/PDI', margin, y);
+    y += 5;
+
+    doc.autoTable({
+      head:[[
+        {content:'Technician',    styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold'}},
+        {content:'Retail Jobs',   styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold'}},
+        {content:'Retail Hours',  styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold'}},
+        {content:'PDI Jobs',      styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold'}},
+        {content:'PDI Hours',     styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold'}},
+        {content:'Total Hours',   styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold'}}
+      ]],
+      body: techList.map(function(t){
+        return[
+          t.name,
+          t.retailJobs,
+          t.retailHrs.toFixed(1),
+          t.salesJobs,
+          t.salesHrs.toFixed(1),
+          {content:(t.retailHrs+t.salesHrs).toFixed(1), styles:{fontStyle:'bold',textColor:[26,82,118]}}
+        ];
+      }).concat([[
+        {content:'TOTAL',styles:{fontStyle:'bold'}},
+        {content:String(totalRetailJobs),styles:{fontStyle:'bold'}},
+        {content:totalRetailHrs.toFixed(1),styles:{fontStyle:'bold',textColor:[0,48,135]}},
+        {content:String(totalSalesJobs),styles:{fontStyle:'bold'}},
+        {content:totalSalesHrs.toFixed(1),styles:{fontStyle:'bold',textColor:[193,127,0]}},
+        {content:(totalRetailHrs+totalSalesHrs).toFixed(1),styles:{fontStyle:'bold',textColor:[26,82,118]}}
+      ]]),
+      startY:y,
+      margin:{left:margin,right:margin},
+      styles:{cellPadding:3,fontSize:9,valign:'middle'},
+      alternateRowStyles:{fillColor:[247,248,250]},
+    });
+    y = doc.lastAutoTable.finalY + 8;
+  }
+
+  // Footer
+  doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(160,170,185);
+  doc.text('Dealer Workshop Controller  •  '+weekLabel, margin, ph-6);
+  doc.text('Generated: '+new Date().toLocaleString('en-GB'), pw-margin, ph-6, {align:'right'});
+
+  doc.save('Weekly-Hours-'+weekKey+'.pdf');
+}
+
+
+/* ═══════════════════════════════════════════
+   WIP SEARCH (EOD)
+═══════════════════════════════════════════ */
+function searchWipEOD(query){
+  var panel = document.getElementById('eodWipResult');
+  if(!panel) return;
+  if(!query){ panel.classList.remove('show'); panel.innerHTML=''; return; }
+  var q = query.toLowerCase().replace(/\s/g,'');
+  var hits = [];
+  S.retailJobs.forEach(function(j){
+    var wip=(j.wipNo||'').toLowerCase().replace(/\s/g,'');
+    var reg=(j.reg||'').toLowerCase().replace(/\s/g,'');
+    if(wip.indexOf(q)!==-1 || reg.indexOf(q)!==-1){
+      hits.push({job:j,board:'Retail',boardCol:'#003087',boardBg:'rgba(0,48,135,0.1)'});
+    }
+  });
+  S.salesJobs.forEach(function(j){
+    var wip=(j.wipNo||'').toLowerCase().replace(/\s/g,'');
+    var reg=(j.reg||'').toLowerCase().replace(/\s/g,'');
+    if(wip.indexOf(q)!==-1 || reg.indexOf(q)!==-1){
+      hits.push({job:j,board:'Sales/PDI',boardCol:'#c17f00',boardBg:'rgba(232,161,0,0.12)'});
+    }
+  });
+  panel.innerHTML='';
+  var title=mk('div','eod-wip-result-title');
+  title.textContent=hits.length?hits.length+' result'+(hits.length!==1?'s':'')+' for "'+query+'"':'No results for "'+query+'"';
+  panel.appendChild(title);
+  if(!hits.length){
+    var none=mk('div','eod-wip-none');none.textContent='No matching WIP number or registration found on either board.';
+    panel.appendChild(none);
+  } else {
+    hits.forEach(function(h){
+      var j=h.job;
+      var row=mk('div','eod-wip-hit');
+      var reg=mk('span','eod-wip-hit-reg');reg.textContent=j.reg||'?';
+      var wip=mk('span');wip.style.cssText='font-size:11px;font-weight:700;color:#1a5276;background:rgba(26,82,118,0.1);border:1px solid #1a5276;border-radius:2px;padding:1px 6px;';
+      wip.textContent='WIP '+(j.wipNo||'—');
+      var board=mk('span','eod-wip-hit-board');
+      board.style.cssText='background:'+h.boardBg+';color:'+h.boardCol+';border:1px solid '+h.boardCol+';border-radius:2px;padding:2px 6px;';
+      board.textContent=h.board;
+      var veh=mk('span');veh.style.cssText='color:#6b7c96;font-size:11px;flex:1;';
+      veh.textContent=[j.make,j.model,j.colour].filter(Boolean).join(' ')||j.veh||'';
+      var stage=mk('span');stage.style.cssText='font-size:11px;color:#4a5f7a;';
+      stage.textContent=RETAIL_STAGE_LABELS[j.stage]||SALES_STAGE_LABELS[j.stage]||j.stage||'';
+      var techObj=S.set.tech.find(function(t){return t.id===j.techId;});
+      var tech=mk('span');tech.style.cssText='font-size:11px;color:#4a5f7a;';
+      tech.textContent=techObj?'🔧 '+techObj.name:'';
+      var hrs=mk('span');hrs.style.cssText='font-size:11px;font-weight:700;color:#1a5276;';
+      hrs.textContent=j.labHrs?(parseFloat(j.labHrs)||0).toFixed(1)+'h':'';
+      app(row,reg,wip,board,veh,stage,tech,hrs);
+      panel.appendChild(row);
+    });
+  }
+  panel.classList.add('show');
 }
 
 function buildHandover(){
