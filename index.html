@@ -1220,10 +1220,11 @@ function renderRetail(){
   var container=clr('wipListR');
   show.forEach(function(st){
     var jobs=sortRetailJobs(all.filter(function(j){return j.stage===st.id;}));
-    // Ready stage: oldest at the bottom (ascending dateIn)
+    // Ready stage: newest ready at top, longest waiting at bottom
     if(st.id==='ready') jobs=jobs.slice().sort(function(a,b){
-      var da=a.dateIn?new Date(a.dateIn).getTime():0, db=b.dateIn?new Date(b.dateIn).getTime():0;
-      return da-db;
+      var da=a.readyDate?new Date(a.readyDate).getTime():(a.dateIn?new Date(a.dateIn).getTime():0);
+      var db=b.readyDate?new Date(b.readyDate).getTime():(b.dateIn?new Date(b.dateIn).getTime():0);
+      return db-da;
     });
     var collapsed=isCollapsed('r',st.id);
     var critN=jobs.filter(function(j){return scoreRetail(j).lv==='crit';}).length;
