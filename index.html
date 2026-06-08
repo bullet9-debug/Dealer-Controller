@@ -1782,89 +1782,101 @@ function saveWeeklyArchive(arch){
   try{ localStorage.setItem(WEEKLY_SK, JSON.stringify(arch)); }catch(e){}
 }
 
-// Called at Sunday midnight and also on each EOD render to make sure today's snapshot is current.
-// Only counts COMPLETED jobs (ready / handover) so carryover WIP from a previous week
-// cannot bleed into a new week's totals.
-var WEEKLY_COMPLETE_STAGES = {ready:true, handover:true};
+// Returns the Sunday 00:00:00 and Saturday 23:59:59 Date objects for a given week key
+function getWeekDateRange(weekKey){
+  var parts = (weekKey||'').match(/^(\d{4})-W(\d+)$/);
+  if(!parts) return null;
+  var yr = parseInt(parts[1]);
+  var wNum = parseInt(parts[2]);
+  var jan1 = new Date(yr, 0, 1);
+  var firstSun = new Date(jan1);
+  firstSun.setDate(1 - jan1.getDay());
+  var sun = new Date(firstSun.getTime() + (wNum-1)*7*24*3600*1000);
+  sun.setHours(0,0,0,0);
+  var sat = new Date(sun.getTime() + 7*24*3600*1000 - 1); // Sat 23:59:59.999
+  return {start: sun, end: sat};
+}
 
+// Called on each EOD render (and Sunday midnight) to snapshot the current week's
+// COMPLETED jobs, keyed strictly by their readyDate so hours are always attributed
+// to the week the job actually finished — not the week it happens to still be on the board.
 function snapshotWeeklyData(){
   var arch = loadWeeklyArchive();
   var wk = getWeekKey();
+  var range = getWeekDateRange(wk);
   var today = new Date().toISOString().split('T')[0];
 
-  // Build per-tech summary of COMPLETED jobs only
   var techMap = {};
   (S.set.tech||[]).forEach(function(t){ techMap[t.id]={name:t.name,retailHrs:0,salesHrs:0,retailJobs:0,salesJobs:0}; });
 
-  S.retailJobs.forEach(function(j){
-    if(j.techId && techMap[j.techId] && WEEKLY_COMPLETE_STAGES[j.stage]){
-      techMap[j.techId].retailHrs += parseFloat(j.labHrs)||0;
-      techMap[j.techId].retailJobs += 1;
-    }
-  });
-  S.salesJobs.forEach(function(j){
-    if(j.techId && techMap[j.techId] && WEEKLY_COMPLETE_STAGES[j.stage]){
-      techMap[j.techId].salesHrs += parseFloat(j.labHrs)||0;
-      techMap[j.techId].salesJobs += 1;
-    }
-  });
+  var COMPLETE = {ready:true, handover:true};
+
+  function countJob(j, isRetail){
+    if(!j.techId || !techMap[j.techId]) return;
+    if(!COMPLETE[j.stage]) return;
+    // Only count if the job was completed (readyDate) within this week's Sunday–Saturday window.
+    // Jobs with no readyDate fall back to dateIn for backwards compatibility.
+    var completedStr = j.readyDate || j.dateIn;
+    if(!completedStr) return;
+    var completedAt = new Date(completedStr);
+    if(range && (completedAt < range.start || completedAt > range.end)) return;
+    techMap[j.techId][isRetail?'retailHrs':'salesHrs']  += parseFloat(j.labHrs)||0;
+    techMap[j.techId][isRetail?'retailJobs':'salesJobs'] += 1;
+  }
+
+  S.retailJobs.forEach(function(j){ countJob(j, true);  });
+  S.salesJobs.forEach(function(j){  countJob(j, false); });
 
   if(!arch[wk]) arch[wk] = {days:{}};
-  // Store the snapshot keyed by date — replaces any earlier snapshot for today.
-  // Because we only count completed jobs, this is safe: completed jobs are monotonically
-  // increasing within a week and cannot include hours from prior weeks.
+  // Each day's snapshot completely replaces the previous one for that date.
+  // Because we filter by readyDate (not live board state), this is always accurate.
   arch[wk].days[today] = {
     techMap: techMap,
-    retailTotal: S.retailJobs.filter(function(j){return WEEKLY_COMPLETE_STAGES[j.stage];}).length,
-    salesTotal:  S.salesJobs.filter(function(j){return WEEKLY_COMPLETE_STAGES[j.stage];}).length,
+    retailTotal: S.retailJobs.filter(function(j){
+      if(!COMPLETE[j.stage]) return false;
+      var d = new Date(j.readyDate||j.dateIn||0);
+      return !range || (d >= range.start && d <= range.end);
+    }).length,
+    salesTotal: S.salesJobs.filter(function(j){
+      if(!COMPLETE[j.stage]) return false;
+      var d = new Date(j.readyDate||j.dateIn||0);
+      return !range || (d >= range.start && d <= range.end);
+    }).length,
     ts: new Date().toISOString()
   };
   saveWeeklyArchive(arch);
   return arch;
 }
 
-// Roll weekly totals across all days in a week entry.
-// Because every day snapshot only contains completed-job hours, we take the MAX per tech
-// per day (the latest snapshot for each day is the most accurate), then SUM across days.
-// This correctly accumulates hours as jobs complete across the week without double-counting.
+// Roll weekly totals from the stored daily snapshots.
+// Each day snapshot already contains only that week's completed jobs (filtered by readyDate),
+// so we simply take the latest (highest) snapshot per day and sum across days.
 function rollWeekTotals(weekEntry){
-  var totals = {}; // techId -> {name,retailHrs,salesHrs,retailJobs,salesJobs}
-  // Sort days oldest-to-newest so latest wins on same-day overwrites
+  var totals = {};
+  // Sort days so we process oldest first; later snapshots on the same date win
   var dayKeys = Object.keys(weekEntry.days||{}).sort();
+  // Build per-day peak (handles multiple snapshots within one day)
+  var dayPeaks = {};
   dayKeys.forEach(function(dk){
-    var daySnap = weekEntry.days[dk];
-    Object.keys(daySnap.techMap||{}).forEach(function(tid){
-      var d = daySnap.techMap[tid];
-      if(!totals[tid]) totals[tid] = {name:d.name,retailHrs:0,salesHrs:0,retailJobs:0,salesJobs:0,_days:{}};
-      // Record this day's completed totals; later snapshots for the same day replace earlier ones
-      totals[tid]._days[dk] = {
-        retailHrs:  d.retailHrs,
-        salesHrs:   d.salesHrs,
-        retailJobs: d.retailJobs,
-        salesJobs:  d.salesJobs
-      };
-    });
+    var snap = weekEntry.days[dk];
+    if(!dayPeaks[dk]) dayPeaks[dk] = snap;
+    else {
+      // Keep the snapshot with the higher total hours (latest EOD of the day)
+      var existing = Object.values(dayPeaks[dk].techMap||{}).reduce(function(a,t){return a+t.retailHrs+t.salesHrs;},0);
+      var incoming  = Object.values(snap.techMap||{}).reduce(function(a,t){return a+t.retailHrs+t.salesHrs;},0);
+      if(incoming > existing) dayPeaks[dk] = snap;
+    }
   });
-  // Now sum the per-day peaks for each tech (each day's snapshot is independent)
-  Object.keys(totals).forEach(function(tid){
-    var t = totals[tid];
-    t.retailHrs = 0; t.salesHrs = 0; t.retailJobs = 0; t.salesJobs = 0;
-    // We take the maximum snapshot value seen for each day (handles multiple snapshots
-    // within a day), then sum across days for the weekly total.
-    var dayPeaks = {}; // dk -> peak snapshot
-    Object.keys(t._days).forEach(function(dk){
-      var snap = t._days[dk];
-      if(!dayPeaks[dk] || snap.retailHrs + snap.salesHrs > dayPeaks[dk].retailHrs + dayPeaks[dk].salesHrs){
-        dayPeaks[dk] = snap;
-      }
+  // Sum across days — each day snapshot is independent (different jobs completed each day)
+  Object.values(dayPeaks).forEach(function(snap){
+    Object.keys(snap.techMap||{}).forEach(function(tid){
+      var d = snap.techMap[tid];
+      if(!totals[tid]) totals[tid] = {name:d.name,retailHrs:0,salesHrs:0,retailJobs:0,salesJobs:0};
+      totals[tid].retailHrs  += d.retailHrs;
+      totals[tid].salesHrs   += d.salesHrs;
+      totals[tid].retailJobs += d.retailJobs;
+      totals[tid].salesJobs  += d.salesJobs;
     });
-    Object.values(dayPeaks).forEach(function(snap){
-      t.retailHrs  += snap.retailHrs;
-      t.salesHrs   += snap.salesHrs;
-      t.retailJobs += snap.retailJobs;
-      t.salesJobs  += snap.salesJobs;
-    });
-    delete t._days;
   });
   return totals;
 }
@@ -2402,23 +2414,16 @@ function renderWeeklyArchivePanel(container){
     body.appendChild(empty);
   } else {
     /* ── MONTHLY TOTALS ── */
-    // Group week keys by the calendar month their Sunday start falls in
     var monthMap = {};
     weekKeys.forEach(function(wk){
-      var parts = wk.match(/^(\d{4})-W(\d+)$/);
-      if(!parts) return;
-      var yr = parseInt(parts[1]);
-      var wNum = parseInt(parts[2]);
-      var jan1 = new Date(yr, 0, 1);
-      var jan1Day = jan1.getDay();
-      var firstSun = new Date(jan1);
-      firstSun.setDate(1 - jan1Day);
-      var sunDate = new Date(firstSun.getTime() + (wNum-1)*7*24*3600*1000);
-      var monthKey = String(sunDate.getFullYear()) + '-' + String(sunDate.getMonth()+1).padStart(2,'0');
-      var monthLabel = sunDate.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+      var range = getWeekDateRange(wk);
+      if(!range) return;
+      // Key by the month the Sunday start falls in
+      var sun = range.start;
+      var monthKey = sun.getFullYear() + '-' + String(sun.getMonth()+1).padStart(2,'0');
+      var monthLabel = sun.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
       if(!monthMap[monthKey]) monthMap[monthKey] = {label:monthLabel, techs:{}};
-      var entry = arch[wk];
-      var weekTotals = rollWeekTotals(entry);
+      var weekTotals = rollWeekTotals(arch[wk]);
       Object.keys(weekTotals).forEach(function(tid){
         var t = weekTotals[tid];
         if(!monthMap[monthKey].techs[tid]) monthMap[monthKey].techs[tid] = {name:t.name,retailHrs:0,salesHrs:0,retailJobs:0,salesJobs:0};
@@ -2439,10 +2444,10 @@ function renderWeeklyArchivePanel(container){
       sortedMonthKeys.forEach(function(monthKey){
         var mEntry = monthMap[monthKey];
         var mTechList = Object.values(mEntry.techs).filter(function(t){return t.retailJobs+t.salesJobs>0;});
-        var mRetailHrs = mTechList.reduce(function(a,t){return a+t.retailHrs;},0);
-        var mSalesHrs  = mTechList.reduce(function(a,t){return a+t.salesHrs;},0);
-        var mRetailJobs= mTechList.reduce(function(a,t){return a+t.retailJobs;},0);
-        var mSalesJobs = mTechList.reduce(function(a,t){return a+t.salesJobs;},0);
+        var mRetailHrs  = mTechList.reduce(function(a,t){return a+t.retailHrs;},0);
+        var mSalesHrs   = mTechList.reduce(function(a,t){return a+t.salesHrs;},0);
+        var mRetailJobs = mTechList.reduce(function(a,t){return a+t.retailJobs;},0);
+        var mSalesJobs  = mTechList.reduce(function(a,t){return a+t.salesJobs;},0);
 
         var mBox = mk('div');
         mBox.style.cssText='background:#f0f3f8;border:1px solid #003087;border-radius:5px;margin-bottom:10px;overflow:hidden;';
@@ -2451,10 +2456,10 @@ function renderWeeklyArchivePanel(container){
         mHdr.style.cssText='background:#003087;padding:8px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;';
         var mHdrLabel = mk('span');
         mHdrLabel.style.cssText='font-size:13px;font-weight:800;color:#fff;flex:1;';
-        mHdrLabel.textContent='\uD83D\uDCC5 ' + mEntry.label;
+        mHdrLabel.textContent='\uD83D\uDCC5 '+mEntry.label;
         var mHdrMeta = mk('span');
         mHdrMeta.style.cssText='font-size:11px;color:rgba(255,255,255,0.75);white-space:nowrap;';
-        mHdrMeta.textContent=(mRetailHrs+mSalesHrs).toFixed(1)+'h total \xB7 '+(mRetailJobs+mSalesJobs)+' completed jobs';
+        mHdrMeta.textContent=(mRetailHrs+mSalesHrs).toFixed(1)+'h \xB7 '+(mRetailJobs+mSalesJobs)+' completed jobs';
         var mChev = mk('span');
         mChev.style.cssText='font-size:11px;color:rgba(255,255,255,0.7);transition:transform 0.15s;';
         mChev.textContent='\u25BE';
@@ -2463,29 +2468,28 @@ function renderWeeklyArchivePanel(container){
         var mBody = mk('div');
         mBody.style.cssText='padding:8px 12px 10px;display:none;';
 
-        mHdr.addEventListener('click', function(){
-          var open = mBody.style.display==='block';
-          mBody.style.display = open ? 'none' : 'block';
-          mChev.style.transform = open ? '' : 'rotate(180deg)';
+        mHdr.addEventListener('click',function(){
+          var open=mBody.style.display==='block';
+          mBody.style.display=open?'none':'block';
+          mChev.style.transform=open?'':'rotate(180deg)';
         });
 
         // Stats bar
-        var mStats = mk('div');
-        mStats.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;padding:8px;background:#fff;border:1px solid #d1d9e6;border-radius:4px;';
-        function mStatCell(val,label,col){
-          var c=mk('div');c.style.cssText='flex:1;min-width:80px;text-align:center;';
-          var n=mk('div');n.style.cssText='font-size:18px;font-weight:800;color:'+col+';';n.textContent=val;
+        var mStats=mk('div');
+        mStats.style.cssText='display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;padding:8px;background:#fff;border:1px solid #d1d9e6;border-radius:4px;';
+        function mStat(val,label,col){
+          var c=mk('div');c.style.cssText='flex:1;min-width:70px;text-align:center;';
+          var n=mk('div');n.style.cssText='font-size:17px;font-weight:800;color:'+col+';';n.textContent=val;
           var l=mk('div');l.style.cssText='font-size:9px;font-weight:700;color:#8fa0b8;text-transform:uppercase;letter-spacing:0.5px;';l.textContent=label;
-          c.appendChild(n); c.appendChild(l); mStats.appendChild(c);
+          c.appendChild(n);c.appendChild(l);mStats.appendChild(c);
         }
-        mStatCell(mRetailHrs.toFixed(1)+'h','Retail Hrs','#003087');
-        mStatCell(String(mRetailJobs),'Retail Jobs','#003087');
-        mStatCell(mSalesHrs.toFixed(1)+'h','PDI Hrs','#c17f00');
-        mStatCell(String(mSalesJobs),'PDI Jobs','#c17f00');
-        mStatCell((mRetailHrs+mSalesHrs).toFixed(1)+'h','Total Hrs','#1a5276');
+        mStat(mRetailHrs.toFixed(1)+'h','Retail Hrs','#003087');
+        mStat(String(mRetailJobs),'Retail Jobs','#003087');
+        mStat(mSalesHrs.toFixed(1)+'h','PDI Hrs','#c17f00');
+        mStat(String(mSalesJobs),'PDI Jobs','#c17f00');
+        mStat((mRetailHrs+mSalesHrs).toFixed(1)+'h','Total Hrs','#1a5276');
         mBody.appendChild(mStats);
 
-        // Per-tech breakdown
         if(mTechList.length){
           mTechList.sort(function(a,b){return (b.retailHrs+b.salesHrs)-(a.retailHrs+a.salesHrs);});
           mTechList.forEach(function(t){
@@ -2494,23 +2498,23 @@ function renderWeeklyArchivePanel(container){
             var rBit=mk('span','weekly-tech-stat');rBit.innerHTML='<span style="color:#003087;font-weight:700;">'+t.retailHrs.toFixed(1)+'h</span> retail ('+t.retailJobs+' job'+(t.retailJobs!==1?'s':'')+')';
             var sBit=mk('span','weekly-tech-stat');sBit.innerHTML='<span style="color:#c17f00;font-weight:700;">'+t.salesHrs.toFixed(1)+'h</span> PDI ('+t.salesJobs+' job'+(t.salesJobs!==1?'s':'')+')';
             var tot=mk('span','weekly-tech-hrs');tot.textContent=(t.retailHrs+t.salesHrs).toFixed(1)+'h';
-            row.appendChild(nm); row.appendChild(rBit); row.appendChild(sBit); row.appendChild(tot);
+            row.appendChild(nm);row.appendChild(rBit);row.appendChild(sBit);row.appendChild(tot);
             mBody.appendChild(row);
           });
-          var mSum=mk('div','weekly-tech-row');mSum.style.borderTop='2px solid #d1d9e6';mSum.style.marginTop='4px';mSum.style.paddingTop='6px';
-          var mSumNm=mk('span','weekly-tech-name');mSumNm.textContent='TOTAL';mSumNm.style.fontWeight='900';
-          var mSumR=mk('span','weekly-tech-stat');mSumR.innerHTML='<span style="color:#003087;font-weight:700;">'+mRetailHrs.toFixed(1)+'h</span> retail ('+mRetailJobs+' jobs)';
-          var mSumS=mk('span','weekly-tech-stat');mSumS.innerHTML='<span style="color:#c17f00;font-weight:700;">'+mSalesHrs.toFixed(1)+'h</span> PDI ('+mSalesJobs+' jobs)';
-          var mSumT=mk('span','weekly-tech-hrs');mSumT.style.fontWeight='900';mSumT.style.color='#1a2b44';mSumT.textContent=(mRetailHrs+mSalesHrs).toFixed(1)+'h';
-          mSum.appendChild(mSumNm); mSum.appendChild(mSumR); mSum.appendChild(mSumS); mSum.appendChild(mSumT);
+          var mSum=mk('div','weekly-tech-row');mSum.style.cssText='border-top:2px solid #d1d9e6;margin-top:4px;padding-top:6px;';
+          var mSNm=mk('span','weekly-tech-name');mSNm.textContent='TOTAL';mSNm.style.fontWeight='900';
+          var mSR=mk('span','weekly-tech-stat');mSR.innerHTML='<span style="color:#003087;font-weight:700;">'+mRetailHrs.toFixed(1)+'h</span> retail ('+mRetailJobs+' jobs)';
+          var mSS=mk('span','weekly-tech-stat');mSS.innerHTML='<span style="color:#c17f00;font-weight:700;">'+mSalesHrs.toFixed(1)+'h</span> PDI ('+mSalesJobs+' jobs)';
+          var mST=mk('span','weekly-tech-hrs');mST.style.cssText='font-weight:900;color:#1a2b44;';mST.textContent=(mRetailHrs+mSalesHrs).toFixed(1)+'h';
+          mSum.appendChild(mSNm);mSum.appendChild(mSR);mSum.appendChild(mSS);mSum.appendChild(mST);
           mBody.appendChild(mSum);
         }
 
-        mBox.appendChild(mHdr); mBox.appendChild(mBody);
+        mBox.appendChild(mHdr);mBox.appendChild(mBody);
         body.appendChild(mBox);
       });
 
-      var divider = mk('div');
+      var divider=mk('div');
       divider.style.cssText='font-size:11px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:#4a5f7a;padding:12px 0 6px;border-top:1px solid #d1d9e6;margin-top:4px;';
       divider.textContent='Weekly Breakdown';
       body.appendChild(divider);
