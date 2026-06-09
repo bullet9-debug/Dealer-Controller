@@ -1995,6 +1995,276 @@ function generateEODPdf(){
 }
 
 /* ═══════════════════════════════════════════
+   WEEKLY TECH HOURS PDF
+   Mon 00:00 → Sat 23:59, from w/c 1 Jun 2026
+═══════════════════════════════════════════ */
+function generateWeeklyHoursPdf(){
+  var doc = new window.jspdf.jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+  var pw = doc.internal.pageSize.getWidth();
+  var ph = doc.internal.pageSize.getHeight();
+  var margin = 14;
+  var y = margin;
+
+  function hexToRgb(h){
+    h = h.replace('#','');
+    return [parseInt(h.substr(0,2),16), parseInt(h.substr(2,2),16), parseInt(h.substr(4,2),16)];
+  }
+  function checkPage(needed){
+    if(y + needed > ph - margin){ doc.addPage(); y = margin; }
+  }
+
+  // Build list of Mon–Sat week windows from 2 Jun 2025 up to and including current week
+  function getWeekWindows(){
+    var weeks = [];
+    // First Monday on/after 1 June 2025
+    var seed = new Date(2026, 5, 1, 0, 0, 0, 0); // 1 Jun 2026 is a Monday
+    var now = new Date();
+    // Find the Monday of the current week
+    var todayDay = now.getDay(); // 0=Sun
+    var daysSinceMon = (todayDay === 0) ? 6 : todayDay - 1;
+    var curMon = new Date(now);
+    curMon.setHours(0,0,0,0);
+    curMon.setDate(curMon.getDate() - daysSinceMon);
+
+    var cur = new Date(seed);
+    while(cur <= curMon){
+      var monDate = new Date(cur);
+      var satDate = new Date(cur);
+      satDate.setDate(satDate.getDate() + 5);
+      satDate.setHours(23,59,59,999);
+      weeks.push({mon: monDate, sat: satDate});
+      cur.setDate(cur.getDate() + 7);
+    }
+    return weeks;
+  }
+
+  function fmtShort(d){
+    return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+String(d.getFullYear()).slice(-2);
+  }
+  function fmtFull(d){
+    var days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return days[d.getDay()]+' '+d.getDate()+' '+months[d.getMonth()]+' '+d.getFullYear();
+  }
+
+  var techs = (S.set.tech||[]);
+  var allJobs = S.retailJobs.concat(S.salesJobs);
+  // Only jobs that reached ready/handover
+  var doneJobs = allJobs.filter(function(j){
+    return (j.stage==='ready'||j.stage==='handover') && j.readyDate && j.labHrs && parseFloat(j.labHrs)>0 && j.techId;
+  });
+
+  var weeks = getWeekWindows();
+
+  // ── HEADER ──
+  doc.setFillColor(0,48,135);
+  doc.rect(0,0,pw,18,'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(13);
+  doc.setTextColor(255,255,255);
+  doc.text('DEALER WORKSHOP CONTROLLER', margin, 10);
+  doc.setFontSize(9);
+  doc.setFont('helvetica','normal');
+  var now2 = new Date();
+  var genStr = now2.toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})
+    +' · '+now2.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  doc.text('Technician Weekly Hours Report  •  Generated '+genStr, margin, 15);
+  doc.setTextColor(0,0,0);
+  y = 24;
+
+  // ── INTRO NOTE ──
+  checkPage(12);
+  doc.setFont('helvetica','italic');
+  doc.setFontSize(8);
+  doc.setTextColor(100,115,135);
+  doc.text('Hours counted for jobs reaching Ready or Handover Ready stage within each Mon 00:00 – Sat 23:59 window.', margin, y);
+  y += 4;
+  doc.text('Weeks run from Monday 1 June 2026. Jobs with no readyDate or zero hours are excluded.', margin, y);
+  y += 8;
+  doc.setTextColor(0,0,0);
+
+  if(techs.length === 0){
+    doc.setFont('helvetica','italic'); doc.setFontSize(9); doc.setTextColor(140,150,165);
+    doc.text('No technicians configured.', margin, y);
+  } else if(weeks.length === 0){
+    doc.setFont('helvetica','italic'); doc.setFontSize(9); doc.setTextColor(140,150,165);
+    doc.text('No week data available.', margin, y);
+  } else {
+    // Build summary table: rows=weeks, cols=techs
+    // Also build per-week detail tables
+
+    // ── SUMMARY TABLE ──
+    checkPage(16);
+    var rgb1 = hexToRgb('#003087');
+    doc.setFillColor(rgb1[0],rgb1[1],rgb1[2]);
+    doc.roundedRect(margin, y, pw-margin*2, 8, 1, 1, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(10);
+    doc.setTextColor(255,255,255);
+    doc.text('WEEKLY HOURS SUMMARY — ALL TECHNICIANS', margin+3, y+5.5);
+    doc.setTextColor(0,0,0);
+    y += 11;
+
+    var summaryHead = [{content:'Week', styles:{fillColor:[0,48,135],textColor:[255,255,255],fontStyle:'bold',fontSize:8}}];
+    techs.forEach(function(t){
+      summaryHead.push({content:t.name, styles:{fillColor:[0,48,135],textColor:[255,255,255],fontStyle:'bold',fontSize:8,halign:'center'}});
+    });
+    summaryHead.push({content:'Total', styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold',fontSize:8,halign:'center'}});
+
+    var summaryRows = weeks.slice().reverse().map(function(w){
+      var weekLabel = fmtShort(w.mon)+' – '+fmtShort(w.sat);
+      var row = [{content: weekLabel, styles:{fontSize:8}}];
+      var weekTotal = 0;
+      techs.forEach(function(t){
+        var hrs = 0;
+        doneJobs.forEach(function(j){
+          if(j.techId !== t.id) return;
+          var rd = new Date(j.readyDate);
+          if(rd >= w.mon && rd <= w.sat) hrs += parseFloat(j.labHrs)||0;
+        });
+        weekTotal += hrs;
+        row.push({content: hrs > 0 ? hrs.toFixed(1) : '—',
+          styles:{fontSize:8, halign:'center', textColor: hrs>0?[26,82,118]:[180,190,205]}});
+      });
+      row.push({content: weekTotal > 0 ? weekTotal.toFixed(1) : '—',
+        styles:{fontSize:8, fontStyle:'bold', halign:'center',
+          textColor: weekTotal>0?[30,132,73]:[180,190,205]}});
+      return row;
+    });
+
+    doc.autoTable({
+      head: [summaryHead],
+      body: summaryRows,
+      startY: y,
+      margin: {left:margin, right:margin},
+      styles: {cellPadding:2.5, fontSize:8, valign:'middle'},
+      alternateRowStyles: {fillColor:[247,248,250]},
+      headStyles: {fillColor:[0,48,135]},
+      didDrawPage: function(data){ y = data.cursor.y+3; }
+    });
+    y = doc.lastAutoTable.finalY + 6;
+
+    // ── PER-WEEK DETAIL ──
+    // Most recent week first
+    var weeksToShow = weeks.slice().reverse();
+    weeksToShow.forEach(function(w){
+      // Collect jobs in this window
+      var weekJobs = doneJobs.filter(function(j){
+        var rd = new Date(j.readyDate);
+        return rd >= w.mon && rd <= w.sat;
+      });
+
+      // Per-tech breakdown for this week
+      var techRows = [];
+      techs.forEach(function(t){
+        var tJobs = weekJobs.filter(function(j){ return j.techId === t.id; });
+        if(!tJobs.length) return;
+        var totalHrs = tJobs.reduce(function(a,j){ return a+(parseFloat(j.labHrs)||0); },0);
+        techRows.push({tech:t, jobs:tJobs, totalHrs:totalHrs});
+      });
+
+      if(!techRows.length) return; // skip empty weeks
+
+      checkPage(18);
+      var rgb2 = hexToRgb('#1a5276');
+      doc.setFillColor(rgb2[0],rgb2[1],rgb2[2]);
+      doc.roundedRect(margin, y, pw-margin*2, 8, 1, 1, 'F');
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(9);
+      doc.setTextColor(255,255,255);
+      doc.text('WEEK: '+fmtFull(w.mon)+' – '+fmtShort(w.sat), margin+3, y+5.5);
+      doc.setTextColor(0,0,0);
+      y += 11;
+
+      var detailHead = [
+        {content:'Technician', styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold',fontSize:8}},
+        {content:'Reg',        styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold',fontSize:8}},
+        {content:'WIP',        styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold',fontSize:8}},
+        {content:'Vehicle',    styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold',fontSize:8}},
+        {content:'Board',      styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold',fontSize:8,halign:'center'}},
+        {content:'Ready Date', styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold',fontSize:8,halign:'center'}},
+        {content:'Hrs',        styles:{fillColor:[26,82,118],textColor:[255,255,255],fontStyle:'bold',fontSize:8,halign:'center'}}
+      ];
+
+      var detailBody = [];
+      techRows.forEach(function(entry){
+        entry.jobs.forEach(function(j, idx){
+          var isRetail = !!S.retailJobs.find(function(r){ return r.id===j.id; });
+          var vm = [j.make,j.model].filter(Boolean).join(' ')||j.veh||'';
+          var rdStr = j.readyDate ? new Date(j.readyDate).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
+          detailBody.push([
+            {content: idx===0 ? entry.tech.name : '',
+              styles:{fontSize:8, fontStyle: idx===0?'bold':'normal',
+                textColor: idx===0?[26,82,118]:[80,90,105]}},
+            {content: j.reg||'?', styles:{fontSize:8, fontStyle:'bold'}},
+            {content: j.wipNo||'', styles:{fontSize:8}},
+            {content: vm, styles:{fontSize:8}},
+            {content: isRetail?'Retail':'PDI',
+              styles:{fontSize:7, halign:'center',
+                textColor: isRetail?[0,48,135]:[161,107,0]}},
+            {content: rdStr, styles:{fontSize:8, halign:'center'}},
+            {content: (parseFloat(j.labHrs)||0).toFixed(1),
+              styles:{fontSize:8, fontStyle:'bold', halign:'center', textColor:[26,82,118]}}
+          ]);
+        });
+        // Subtotal row per tech
+        detailBody.push([
+          {content:'', styles:{fontSize:7}},
+          {content:'', styles:{fontSize:7}},
+          {content:'', styles:{fontSize:7}},
+          {content:'', styles:{fontSize:7}},
+          {content:'', styles:{fontSize:7}},
+          {content:entry.tech.name+' total', styles:{fontSize:7, fontStyle:'bold', halign:'right', textColor:[100,115,135]}},
+          {content:entry.totalHrs.toFixed(1)+' hrs',
+            styles:{fontSize:8, fontStyle:'bold', halign:'center',
+              fillColor:[232,240,252], textColor:[26,82,118]}}
+        ]);
+      });
+
+      var weekTotal = techRows.reduce(function(a,e){ return a+e.totalHrs; },0);
+      detailBody.push([
+        {content:'WEEK TOTAL', colSpan:6,
+          styles:{fontSize:8, fontStyle:'bold', halign:'right',
+            fillColor:[0,48,135], textColor:[255,255,255]}},
+        {content:weekTotal.toFixed(1)+' hrs',
+          styles:{fontSize:9, fontStyle:'bold', halign:'center',
+            fillColor:[0,48,135], textColor:[255,255,255]}}
+      ]);
+
+      doc.autoTable({
+        head: [detailHead],
+        body: detailBody,
+        startY: y,
+        margin: {left:margin, right:margin},
+        styles: {cellPadding:2, fontSize:8, valign:'middle'},
+        alternateRowStyles: {fillColor:[247,248,250]},
+        headStyles: {fillColor:[26,82,118]},
+        columnStyles: {
+          0:{cellWidth:28}, 1:{cellWidth:18}, 2:{cellWidth:16},
+          3:{cellWidth:'auto'}, 4:{cellWidth:14}, 5:{cellWidth:20}, 6:{cellWidth:14}
+        },
+        didDrawPage: function(data){ y = data.cursor.y+3; }
+      });
+      y = doc.lastAutoTable.finalY + 6;
+    });
+  }
+
+  // ── FOOTER ──
+  var pages = doc.internal.getNumberOfPages();
+  for(var p=1; p<=pages; p++){
+    doc.setPage(p);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7);
+    doc.setTextColor(160,170,185);
+    doc.text('Dealer Workshop Controller  •  Technician Weekly Hours Report', margin, ph-6);
+    doc.text('Page '+p+' of '+pages, pw-margin, ph-6, {align:'right'});
+  }
+
+  var filename = 'TechHours-WeeklyReport-'+new Date().toISOString().slice(0,10)+'.pdf';
+  doc.save(filename);
+}
+
+/* ═══════════════════════════════════════════
    EOD REPORT
 ═══════════════════════════════════════════ */
 function renderEOD(){
@@ -2018,13 +2288,17 @@ function renderEOD(){
   var pdfBtn = mk('button','btn pr');
   pdfBtn.innerHTML = '⬇ Download PDF';
   pdfBtn.addEventListener('click', generateEODPdf);
+  var weekHrsBtn = mk('button','btn');
+  weekHrsBtn.innerHTML = '📊 Tech Hours Report';
+  weekHrsBtn.style.cssText='background:#1a5276;color:#fff;border:none;padding:8px 13px;border-radius:3px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;';
+  weekHrsBtn.addEventListener('click', generateWeeklyHoursPdf);
   var wipSearchWrap = mk('div');wipSearchWrap.style.display='flex';wipSearchWrap.style.gap='6px';wipSearchWrap.style.alignItems='center';
   var wipSearchLbl = mk('span');wipSearchLbl.style.cssText='font-size:12px;color:#6b7c96;white-space:nowrap;';wipSearchLbl.textContent='WIP Search:';
   var wipSearch = mk('input','eod-wip-search');wipSearch.placeholder='Enter WIP No…';wipSearch.id='eodWipSearch';
   wipSearch.setAttribute('autocomplete','off');
   wipSearch.addEventListener('input',function(){ searchWipEOD(this.value.trim()); });
   app(wipSearchWrap,wipSearchLbl,wipSearch);
-  app(abar,abarTitle,pdfBtn,wipSearchWrap);
+  app(abar,abarTitle,pdfBtn,weekHrsBtn,wipSearchWrap);
   container.appendChild(abar);
 
   /* WIP Search Results Panel */
