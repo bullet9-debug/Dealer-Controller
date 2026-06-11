@@ -681,17 +681,22 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
         </div>
       </div>
 
-      <!-- Sales always-visible row: Labour Hrs + Handover Date -->
+      <!-- Sales always-visible row: Job Lines + Handover Date -->
       <div id="mSalesQuickRow" style="display:none;">
-        <div class="frow">
-          <div class="fg" style="max-width:150px;"><label class="flbl">Labour Hrs</label><input class="finput" type="number" id="fSalesLabHrs" placeholder="0.0" min="0" step="0.5"></div>
-          <div class="fg"><label class="flbl">Handover Date</label>
-            <div class="date-picker-wrap">
-              <div class="date-display-btn" id="fHandoverBtn">📅 Select date</div>
-              <input type="date" class="date-overlay-input" id="fHandover" oninput="updateDateBtn('fHandover','fHandoverBtn')">
-            </div>
+        <div class="fg" style="margin-bottom:6px;">
+          <label class="flbl">Job Lines <span style="font-weight:400;color:#8fa0b8;">(description + hours per operation)</span></label>
+          <div id="jobLinesSales" class="job-lines-container"></div>
+          <button type="button" class="job-lines-add-btn" onclick="addJobLine('sales')">+ Add Line</button>
+          <div class="job-lines-total" id="jobLinesTotalSales">Total: <strong>0.0 h</strong></div>
+        </div>
+        <div class="fg"><label class="flbl">Handover Date</label>
+          <div class="date-picker-wrap">
+            <div class="date-display-btn" id="fHandoverBtn">📅 Select date</div>
+            <input type="date" class="date-overlay-input" id="fHandover" oninput="updateDateBtn('fHandover','fHandoverBtn')">
           </div>
         </div>
+        <!-- Hidden field keeps labHrs in sync -->
+        <input type="hidden" id="fSalesLabHrs">
       </div>
 
       <div class="msec expand-toggle" id="expandToggle"><span class="etarrow">▶</span> More Detail</div>
@@ -702,11 +707,18 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
         </div>
         <!-- Retail specific detail -->
         <div id="mRetailDetail">
-          <div class="fg3">
-            <div class="fg"><label class="flbl">Labour Hrs</label><input class="finput" type="number" id="fLabHrs" placeholder="0.0" min="0" step="0.5"></div>
+          <div class="fg" style="margin-bottom:6px;">
+            <label class="flbl">Job Lines <span style="font-weight:400;color:#8fa0b8;">(description + hours per operation)</span></label>
+            <div id="jobLinesRetail" class="job-lines-container"></div>
+            <button type="button" class="job-lines-add-btn" onclick="addJobLine('retail')">+ Add Line</button>
+            <div class="job-lines-total" id="jobLinesTotalRetail">Total: <strong>0.0 h</strong></div>
+          </div>
+          <div class="fg3" style="margin-top:4px;">
             <div class="fg"><label class="flbl">Job Value £</label><input class="finput" type="number" id="fValue" placeholder="0" min="0"></div>
             <div class="fg"><label class="flbl">Auth Ref</label><input class="finput" id="fAuthRef" placeholder="e.g. WO12345"></div>
           </div>
+          <!-- Hidden field keeps labHrs in sync for save -->
+          <input type="hidden" id="fLabHrs">
         </div>
         <!-- Sales specific detail (in expand: sales exec only) -->
         <div id="mSalesDetail" style="display:none;">
@@ -731,6 +743,22 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 .date-picker-wrap:hover .date-display-btn{border-color:#003087;}
 .date-display-btn.has-date{color:#1a2b44;font-weight:700;}
 .date-overlay-input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:13px;border:none;background:transparent;}
+/* Job Lines widget */
+.job-lines-container{display:flex;flex-direction:column;gap:5px;margin-bottom:5px;}
+.job-line-row{display:flex;gap:6px;align-items:center;}
+.job-line-desc{flex:1;min-width:0;padding:6px 8px;border:1px solid #d1d9e6;border-radius:3px;font-size:13px;background:#fff;color:#1a2b44;}
+.job-line-desc:focus{outline:none;border-color:#003087;}
+.job-line-hrs{width:72px;flex-shrink:0;padding:6px 8px;border:1px solid #d1d9e6;border-radius:3px;font-size:13px;background:#fff;color:#1a2b44;text-align:right;}
+.job-line-hrs:focus{outline:none;border-color:#003087;}
+.job-line-del{width:28px;height:28px;flex-shrink:0;border:none;background:rgba(192,57,43,0.1);color:#c0392b;border-radius:3px;cursor:pointer;font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;}
+.job-line-del:hover{background:rgba(192,57,43,0.22);}
+.job-lines-add-btn{background:none;border:1px dashed #b0bfcf;color:#4a6580;font-size:12px;padding:4px 10px;border-radius:3px;cursor:pointer;margin-top:2px;}
+.job-lines-add-btn:hover{border-color:#003087;color:#003087;background:#f0f4fa;}
+.job-lines-total{font-size:12px;color:#4a6580;text-align:right;margin-top:4px;padding-right:2px;}
+.job-lines-total strong{color:#1a2b44;}
+/* Job card lines preview */
+.jlines-preview{display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;}
+.jline-tag{font-size:10px;background:#e8edf5;color:#4a6580;border-radius:2px;padding:1px 5px;white-space:nowrap;}
 </style>
 
 <!-- CONFIRM -->
@@ -1295,6 +1323,12 @@ function makeRetailCard(job){
   });
   var detail=mk('div','jcard-detail');
   if(job.eta){var etaD=mk('div','jcom-i');etaD.textContent='Promised: '+fmtDate(job.eta);detail.appendChild(etaD);}
+  if(job.jobLines&&job.jobLines.length){
+    var lhTotal=mk('div','jcom-i');lhTotal.textContent='Hours: '+parseFloat(job.labHrs||0).toFixed(1)+'h';detail.appendChild(lhTotal);
+    var lPrev=mk('div','jlines-preview');
+    job.jobLines.forEach(function(l){if(l.desc||l.hrs){var t=mk('span','jline-tag');t.textContent=(l.desc||'Op')+' '+parseFloat(l.hrs||0).toFixed(1)+'h';lPrev.appendChild(t);}});
+    if(lPrev.children.length)detail.appendChild(lPrev);
+  }else if(job.labHrs){var lhS=mk('div','jcom-i');lhS.textContent='Hours: '+parseFloat(job.labHrs).toFixed(1)+'h';detail.appendChild(lhS);}
   if(job.notes){var nd=mk('div','jnotes');nd.textContent=job.notes.slice(0,80)+(job.notes.length>80?'…':'');detail.appendChild(nd);}
   app(card,top,row2,dvlaRow,flagRow,detail);
   card.addEventListener('click',function(){if(isTechView()){openTechStageModal(job.id,'retail');}else{openEditRetail(job.id);}});
@@ -1386,7 +1420,12 @@ function makeSalesCard(job){
   var detail=mk('div','jcard-detail');
   if(job.eta){var etaD=mk('div','jcom-i');etaD.textContent='Handover: '+fmtDate(job.eta);detail.appendChild(etaD);}
   if(job.handoverDate){var hd=mk('div','jcom-i');hd.textContent='H/O Date: '+fmtDate(job.handoverDate);detail.appendChild(hd);}
-  if(job.labHrs){var lhS=mk('div','jcom-i');lhS.textContent='Hours: '+parseFloat(job.labHrs).toFixed(1)+'h';detail.appendChild(lhS);}
+  if(job.jobLines&&job.jobLines.length){
+    var lhTotal2=mk('div','jcom-i');lhTotal2.textContent='Hours: '+parseFloat(job.labHrs||0).toFixed(1)+'h';detail.appendChild(lhTotal2);
+    var lPrev2=mk('div','jlines-preview');
+    job.jobLines.forEach(function(l){if(l.desc||l.hrs){var t=mk('span','jline-tag');t.textContent=(l.desc||'Op')+' '+parseFloat(l.hrs||0).toFixed(1)+'h';lPrev2.appendChild(t);}});
+    if(lPrev2.children.length)detail.appendChild(lPrev2);
+  }else if(job.labHrs){var lhS=mk('div','jcom-i');lhS.textContent='Hours: '+parseFloat(job.labHrs).toFixed(1)+'h';detail.appendChild(lhS);}
   if(job.notes){var nd=mk('div','jnotes');nd.textContent=job.notes.slice(0,80)+(job.notes.length>80?'…':'');detail.appendChild(nd);}
   app(card,top,row2,dvlaRow2,detail);
   card.addEventListener('click',function(){if(isTechView()){openTechStageModal(job.id,'sales');}else{openEditSales(job.id);}});
@@ -1438,8 +1477,8 @@ function setModalBoard(board){
     var b=mk('button','sselbtn'+(modalCats.indexOf(cat.id)!==-1?' on':''));b.textContent=cat.label;b.style.fontSize='11px';
     b.addEventListener('click',function(){
       var idx=modalCats.indexOf(cat.id);
-      if(idx===-1){modalCats.push(cat.id);b.classList.add('on');}
-      else{modalCats.splice(idx,1);b.classList.remove('on');}
+      if(idx===-1){modalCats.push(cat.id);b.classList.add('on');_syncCatToJobLine(board,cat.label,'add');}
+      else{modalCats.splice(idx,1);b.classList.remove('on');_syncCatToJobLine(board,cat.label,'remove');}
     });
     crow.appendChild(b);
   });
@@ -1450,6 +1489,94 @@ function setModalBoard(board){
   S.set.tech.forEach(function(x){techEl.appendChild(opt(x.id,x.name));});
   var seEl=document.getElementById('fSalesExec');while(seEl.options.length)seEl.remove(0);seEl.appendChild(opt('','No sales exec'));
   S.set.sales.forEach(function(x){seEl.appendChild(opt(x.id,x.name));});
+}
+
+/* ═══════════════════════════════
+   JOB LINES — multi-operation hours
+═══════════════════════════════ */
+var _jobLines = {retail:[], sales:[]};
+
+function _jobLinesTotal(board){
+  return _jobLines[board].reduce(function(s,l){return s+(parseFloat(l.hrs)||0);},0);
+}
+
+function _updateJobLinesTotal(board){
+  var tot=_jobLinesTotal(board);
+  var el=document.getElementById(board==='retail'?'jobLinesTotalRetail':'jobLinesTotalSales');
+  if(el)el.innerHTML='Total: <strong>'+(tot>0?tot.toFixed(1):'0.0')+' h</strong>';
+  // keep hidden input in sync
+  var hid=document.getElementById(board==='retail'?'fLabHrs':'fSalesLabHrs');
+  if(hid)hid.value=tot||0;
+}
+
+function _renderJobLines(board){
+  var container=document.getElementById(board==='retail'?'jobLinesRetail':'jobLinesSales');
+  if(!container)return;
+  container.innerHTML='';
+  _jobLines[board].forEach(function(line,i){
+    var row=document.createElement('div');row.className='job-line-row';
+    var desc=document.createElement('input');
+    desc.type='text';desc.className='job-line-desc';desc.placeholder='e.g. Service, Timing belt, Brakes...';
+    desc.value=line.desc||'';
+    desc.addEventListener('input',function(){_jobLines[board][i].desc=this.value;});
+    var hrs=document.createElement('input');
+    hrs.type='number';hrs.className='job-line-hrs';hrs.placeholder='hrs';hrs.min='0';hrs.step='0.5';
+    hrs.value=line.hrs||'';
+    hrs.addEventListener('input',function(){_jobLines[board][i].hrs=parseFloat(this.value)||0;_updateJobLinesTotal(board);});
+    var del=document.createElement('button');del.type='button';del.className='job-line-del';del.textContent='×';del.title='Remove line';
+    del.addEventListener('click',function(){_jobLines[board].splice(i,1);_renderJobLines(board);_updateJobLinesTotal(board);});
+    row.appendChild(desc);row.appendChild(hrs);row.appendChild(del);
+    container.appendChild(row);
+  });
+  _updateJobLinesTotal(board);
+}
+
+function _syncCatToJobLine(board, label, action){
+  var lines = _jobLines[board];
+  if(action === 'add'){
+    // Only add if no line already has this exact label (case-insensitive)
+    var exists = lines.some(function(l){ return l.desc.trim().toLowerCase() === label.trim().toLowerCase(); });
+    if(!exists){
+      // If there's a single blank placeholder line, reuse it
+      if(lines.length === 1 && !lines[0].desc && !(parseFloat(lines[0].hrs) > 0)){
+        lines[0].desc = label;
+      } else {
+        lines.push({desc: label, hrs: 0});
+      }
+      _renderJobLines(board);
+    }
+  } else {
+    // Remove only if the line has no hours entered (don't destroy filled-in work)
+    var idx = -1;
+    for(var i = 0; i < lines.length; i++){
+      if(lines[i].desc.trim().toLowerCase() === label.trim().toLowerCase() && !(parseFloat(lines[i].hrs) > 0)){
+        idx = i; break;
+      }
+    }
+    if(idx !== -1){ lines.splice(idx, 1); _renderJobLines(board); }
+  }
+}
+
+function addJobLine(board){
+  _jobLines[board].push({desc:'',hrs:0});
+  _renderJobLines(board);
+  // focus the new description field
+  var container=document.getElementById(board==='retail'?'jobLinesRetail':'jobLinesSales');
+  if(container){var rows=container.querySelectorAll('.job-line-desc');if(rows.length)rows[rows.length-1].focus();}
+}
+
+function _clearJobLines(board){
+  _jobLines[board]=[];
+  _renderJobLines(board);
+}
+
+function _loadJobLines(board,lines){
+  _jobLines[board]=(lines&&lines.length)?lines.map(function(l){return {desc:l.desc||'',hrs:parseFloat(l.hrs)||0};}):[{desc:'',hrs:0}];
+  _renderJobLines(board);
+}
+
+function _getJobLines(board){
+  return _jobLines[board].filter(function(l){return l.desc||l.hrs>0;});
 }
 
 function clearModal(){
@@ -1464,6 +1591,8 @@ function clearModal(){
   document.getElementById('dvlaExtraRow').innerHTML='';
   document.getElementById('expandBody').classList.remove('open');
   document.getElementById('expandToggle').classList.remove('open');
+  _clearJobLines('retail');
+  _clearJobLines('sales');
 }
 
 function fillJobData(job){
@@ -1480,13 +1609,15 @@ function fillJobData(job){
   isoToDp(job.dateIn||'','fDateIn');
   isoToDp(job.eta||'','fEta');
   if(editBoard==='retail'){
-    document.getElementById('fLabHrs').value=job.labHrs||'';
+    var rLines=job.jobLines&&job.jobLines.length?job.jobLines:(job.labHrs&&parseFloat(job.labHrs)>0?[{desc:'Labour',hrs:parseFloat(job.labHrs)||0}]:[]);
+    _loadJobLines('retail',rLines);
     document.getElementById('fValue').value=job.value||'';
     document.getElementById('fAuthRef').value=job.authRef||'';
     (job.flags||[]).forEach(function(f){var b=document.querySelector('.ftog[data-flag="'+f+'"]');if(b)b.className='ftog on-'+f;});
   }else{
     document.getElementById('fSalesExec').value=job.salesId||'';
-    document.getElementById('fSalesLabHrs').value=job.labHrs||'';
+    var sLines=job.jobLines&&job.jobLines.length?job.jobLines:(job.labHrs&&parseFloat(job.labHrs)>0?[{desc:'Labour',hrs:parseFloat(job.labHrs)||0}]:[]);
+    _loadJobLines('sales',sLines);
     isoToDp(job.handoverDate||'','fHandover');
   }
   document.getElementById('fAdv').value=job.advId||'';
@@ -1505,13 +1636,14 @@ function fillJobData(job){
     var cat=cats.find(function(c){return c.label===b.textContent;});
     b.classList.toggle('on',!!(cat&&modalCats.indexOf(cat.id)!==-1));
   });
-  var hasDetail=job.notes||job.advId||job.techId||(editBoard==='retail'&&(job.labHrs||job.value||job.authRef))||(editBoard==='sales'&&job.salesId);
+  var hasDetail=job.notes||job.advId||job.techId||(editBoard==='retail'&&(job.jobLines&&job.jobLines.length||job.labHrs||job.value||job.authRef))||(editBoard==='sales'&&(job.jobLines&&job.jobLines.length||job.salesId));
   if(hasDetail){document.getElementById('expandBody').classList.add('open');document.getElementById('expandToggle').classList.add('open');}
 }
 
 function openAddRetail(){
   editId=null;modalStage='booking';modalCats=[];
   clearModal();setModalBoard('retail');
+  addJobLine('retail');
   document.getElementById('mTitle').textContent='Add Retail Job';
   document.getElementById('delBtn').style.display='none';
   document.getElementById('saveBtn').className='btn pr';
@@ -1520,6 +1652,7 @@ function openAddRetail(){
 function openAddSales(){
   editId=null;modalStage='allocated';modalCats=[];
   clearModal();setModalBoard('sales');
+  addJobLine('sales');
   document.getElementById('mTitle').textContent='Add PDI / Sales Job';
   document.getElementById('delBtn').style.display='none';
   document.getElementById('saveBtn').className='btn spr';
@@ -1579,7 +1712,9 @@ document.getElementById('saveBtn').addEventListener('click',function(){
   };
   if(editBoard==='retail'){
     var flags=[];document.querySelectorAll('.ftog').forEach(function(b){var f=b.dataset.flag;if(b.classList.contains('on-'+f))flags.push(f);});
-    Object.assign(baseData,{flags:flags,labHrs:parseFloat(document.getElementById('fLabHrs').value)||0,value:parseFloat(document.getElementById('fValue').value)||0,authRef:document.getElementById('fAuthRef').value.trim()});
+    var rJobLines=_getJobLines('retail');
+    var rLabHrs=rJobLines.reduce(function(s,l){return s+(parseFloat(l.hrs)||0);},0);
+    Object.assign(baseData,{flags:flags,jobLines:rJobLines,labHrs:rLabHrs,value:parseFloat(document.getElementById('fValue').value)||0,authRef:document.getElementById('fAuthRef').value.trim()});
     if(editId){
       var idx=S.retailJobs.findIndex(function(j){return j.id===editId;});
       if(idx!==-1){
@@ -1595,7 +1730,9 @@ document.getElementById('saveBtn').addEventListener('click',function(){
     }
     save();closeModal();renderRetail();renderHeader();renderUrgStripR();
   }else{
-    Object.assign(baseData,{salesId:document.getElementById('fSalesExec').value,handoverDate:dpToIso('fHandover'),labHrs:parseFloat(document.getElementById('fSalesLabHrs').value)||0});
+    var sJobLines=_getJobLines('sales');
+    var sLabHrs=sJobLines.reduce(function(s,l){return s+(parseFloat(l.hrs)||0);},0);
+    Object.assign(baseData,{salesId:document.getElementById('fSalesExec').value,handoverDate:dpToIso('fHandover'),jobLines:sJobLines,labHrs:sLabHrs});
     if(editId){
       var sidx=S.salesJobs.findIndex(function(j){return j.id===editId;});
       if(sidx!==-1){
