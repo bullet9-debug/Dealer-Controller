@@ -799,7 +799,6 @@ var SK = 'dwc_v1';
 var RETAIL_STAGES = [
   {id:'booking',   label:'Booking',        sc:'s-booking'},
   {id:'onsite',    label:'On Site',         sc:'s-onsite'},
-  {id:'dropin',    label:'Awaiting Drop-off',sc:'s-dropin'},
   {id:'inprog',    label:'In Progress',    sc:'s-inprog'},
   {id:'wparts',    label:'Awaiting Parts', sc:'s-wparts'},
   {id:'wauth',     label:'Awaiting Auth/Decision', sc:'s-wauth'},
@@ -1120,6 +1119,7 @@ function buildChaseItems(){
     if(j.stage==='ready'&&days>=1)add('Ready '+days+'d — customer not collected','info');
   });
   S.salesJobs.forEach(function(j){
+    if(j.stage==='handover') return; // handover-ready jobs are surfaced as info only — not critical/warn
     var days=j.dateIn?Math.floor((Date.now()-new Date(j.dateIn))/86400000):0;
     var es=etaStatus(j);
     var stage=SALES_STAGE_LABELS[j.stage]||j.stage;
@@ -1128,7 +1128,6 @@ function buildChaseItems(){
     if(j.stage==='wparts')add('PDI held — parts delayed','warn');
     if(es==='today')add('Handover today — confirm PDI complete','warn');
     if(es==='tomorrow')add('Handover tomorrow — PDI must complete today','info');
-    if(j.stage==='handover')add('Handover ready — notify sales team to arrange collection','info');
   });
   items.sort(function(a,b){var o={crit:0,warn:1,info:2};return(o[a.lv]||3)-(o[b.lv]||3);});
   return items;
