@@ -3401,7 +3401,7 @@ function applyUserUI(){
     document.getElementById('tab6').style.display='none';
     if(curTab!==3) goTab(3,document.getElementById('tab3'));
   } else {
-    // tech — retail WIP + sales/PDI only, stage update only
+    // tech — retail WIP + sales/PDI + my hours only, stage update only
     if(badge){ badge.style.display=''; badge.textContent='🔧 '+currentUser.name; badge.className='tech-badge'; }
     var techAllowed=['tab2','tab3','tab6'];
     tabs.forEach(function(id){
@@ -3599,16 +3599,29 @@ function submitTechLogin(){
 }
 
 /* ── Tech stage modal ── */
-var _tsmJobId=null, _tsmBoard=null;
+var _tsmJobId=null, _tsmBoard=null, _tsmSelectedStage=null;
 function openTechStageModal(jobId, board){
   var job = board==='retail'
     ? (S.retailJobs||[]).find(function(j){ return j.id===jobId; })
     : (S.salesJobs||[]).find(function(j){ return j.id===jobId; });
   if(!job) return;
-  _tsmJobId=jobId; _tsmBoard=board;
+  _tsmJobId=jobId; _tsmBoard=board; _tsmSelectedStage=job.stage;
   document.getElementById('tsmReg').textContent = job.reg||'?';
   var vm=[job.make,job.model].filter(Boolean).join(' ')||job.veh||'';
   document.getElementById('tsmVeh').textContent = vm + (job.colour?' · '+job.colour:'');
+
+  /* Assignment badge */
+  var techRow = document.getElementById('tsmTechRow');
+  var myId = currentUser && currentUser.techId;
+  var assignedToMe = myId && job.techId === myId;
+  techRow.style.display = assignedToMe ? '' : 'none';
+  techRow.textContent = assignedToMe ? '✅ Assigned to you' : '';
+
+  /* Hours field — seed from existing labHrs */
+  var hoursInput = document.getElementById('tsmHoursInput');
+  hoursInput.value = job.labHrs && parseFloat(job.labHrs) > 0 ? parseFloat(job.labHrs) : '';
+
+  /* Stage buttons */
   var stages = board==='retail' ? RETAIL_STAGES : SALES_STAGES;
   var cont = document.getElementById('tsmStages');
   while(cont.firstChild) cont.removeChild(cont.firstChild);
@@ -3617,8 +3630,11 @@ function openTechStageModal(jobId, board){
     b.type='button';
     b.className='tsm-stage-btn'+(job.stage===s.id?' active':'');
     b.textContent=s.label;
+    b.dataset.stageId=s.id;
     b.addEventListener('click',function(){
-      saveTechStage(s.id);
+      cont.querySelectorAll('.tsm-stage-btn').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      _tsmSelectedStage = s.id;
     });
     cont.appendChild(b);
   });
@@ -3626,19 +3642,48 @@ function openTechStageModal(jobId, board){
 }
 function closeTechStageModal(){
   document.getElementById('techStageModal').classList.remove('show');
-  _tsmJobId=null; _tsmBoard=null;
+  _tsmJobId=null; _tsmBoard=null; _tsmSelectedStage=null;
 }
-function saveTechStage(stageId){
-  if(!_tsmJobId||!_tsmBoard) return;
+function commitTechStage(){
+  if(!_tsmJobId||!_tsmBoard||!_tsmSelectedStage) return;
   var jobs = _tsmBoard==='retail' ? S.retailJobs : S.salesJobs;
   var job = jobs.find(function(j){ return j.id===_tsmJobId; });
   if(!job) return;
+
+  var stageId = _tsmSelectedStage;
+  var firstStage = _tsmBoard==='retail' ? 'booking' : 'allocated';
+  var myId = currentUser && currentUser.techId;
+
+  /* Auto-assign: moving away from first stage → assign to this tech (if not already assigned) */
+  if(stageId !== firstStage){
+    if(!job.techId && myId) job.techId = myId;
+  }
+  /* Auto-deallocate: moving back to first stage → clear tech assignment */
+  if(stageId === firstStage){
+    job.techId = '';
+  }
+
+  /* Hours */
+  var hrsVal = parseFloat(document.getElementById('tsmHoursInput').value);
+  if(!isNaN(hrsVal) && hrsVal >= 0){
+    job.labHrs = hrsVal;
+    /* Sync into jobLines if they exist — update first line or add one */
+    if(job.jobLines && job.jobLines.length){
+      job.jobLines[0].hrs = hrsVal;
+    } else {
+      job.jobLines = [{desc:'Labour', hrs:hrsVal}];
+    }
+  }
+
+  /* Ready date */
   if(stageId==='ready'||stageId==='handover') job.readyDate=new Date().toISOString();
+  else if(stageId===firstStage) job.readyDate=null;
+
   job.stage = stageId;
   save();
   closeTechStageModal();
-  if(_tsmBoard==='retail') renderRetail();
-  else renderSales();
+  if(_tsmBoard==='retail'){ renderRetail(); }
+  else { renderSales(); }
 }
 
 /* ── addMemberRole — add adv/sales with PIN ── */
@@ -3816,7 +3861,7 @@ function renderMyHours(){
   var bodyEl  = document.getElementById('myHoursBody');
   if(!bodyEl) return;
   if(!currentUser || currentUser.type !== 'tech'){
-    if(bodyEl) bodyEl.innerHTML='<div style="font-size:13px;color:#8fa0b8;padding:10px 0;">Not logged in as a technician.</div>';
+    bodyEl.innerHTML='<div style="font-size:13px;color:#8fa0b8;padding:10px 0;">Not logged in as a technician.</div>';
     return;
   }
   if(titleEl) titleEl.textContent = '🔧 ' + currentUser.name + ' — My Hours';
@@ -3868,7 +3913,6 @@ function renderMyHours(){
     s3.innerHTML='<div class="thp-stat-val">'+avg+'</div><div class="thp-stat-lbl">Avg/Week</div>';
     summ.appendChild(s1); summ.appendChild(s2); summ.appendChild(s3);
     bodyEl.appendChild(summ);
-    // Jobs breakdown
     if(doneJobs.length){
       var hdr=document.createElement('div');
       hdr.style.cssText='font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#003087;margin:14px 0 6px;padding-top:10px;border-top:1px solid #d1d9e6;';
@@ -3948,9 +3992,19 @@ function renderMyHours(){
   <div class="tsm-box">
     <div class="tsm-reg" id="tsmReg"></div>
     <div class="tsm-veh" id="tsmVeh"></div>
+    <div id="tsmTechRow" style="display:none;font-size:11px;font-weight:700;background:rgba(39,174,96,0.1);border:1px solid #27ae60;color:#1e8449;border-radius:4px;padding:5px 9px;margin-bottom:10px;">✅ Assigned to you</div>
     <div class="tsm-label">Update Stage</div>
     <div class="tsm-stages" id="tsmStages"></div>
-    <button class="btn" style="width:100%" onclick="closeTechStageModal()">Close</button>
+    <div id="tsmHoursRow" style="margin-bottom:14px;">
+      <div class="tsm-label" style="margin-bottom:6px;">Hours on this job</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="number" id="tsmHoursInput" min="0" max="99" step="0.5" placeholder="e.g. 2.5"
+          style="width:100px;padding:9px 10px;border:2px solid #d1d9e6;border-radius:5px;font-size:16px;font-weight:700;color:#1a2b44;text-align:center;background:#f7f8fa;">
+        <span style="font-size:12px;color:#6b7c96;">hours</span>
+      </div>
+    </div>
+    <button class="btn pr" style="width:100%;margin-bottom:8px;" onclick="commitTechStage()">Save</button>
+    <button class="btn" style="width:100%" onclick="closeTechStageModal()">Cancel</button>
   </div>
 </div>
 
