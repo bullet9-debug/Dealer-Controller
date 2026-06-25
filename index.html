@@ -301,6 +301,27 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 .eod-wip-none{color:#8fa0b8;font-size:12px;font-style:italic;}
 
 
+/* ── TOMORROW NOTES ── */
+.tmr-panel{background:#fff;border:1px solid #d1d9e6;border-radius:6px;margin-bottom:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
+.tmr-hdr{background:#f7f8fa;border-bottom:2px solid #003087;padding:9px 14px;display:flex;align-items:center;gap:8px;}
+.tmr-hdr-title{font-size:13px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;color:#003087;flex:1;}
+.tmr-hdr-count{font-size:12px;color:#8fa0b8;font-weight:600;}
+.tmr-body{padding:6px 10px 8px;}
+.tmr-empty{padding:8px 4px;color:#8fa0b8;font-size:12px;font-style:italic;}
+.tmr-item{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:4px;background:#f7f8fa;border:1px solid #d1d9e6;margin-bottom:4px;}
+.tmr-item.done{opacity:0.45;}
+.tmr-item.done .tmr-text{text-decoration:line-through;color:#8fa0b8;}
+.tmr-tick{width:18px;height:18px;border:2px solid #b0bdd0;border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:transparent;flex-shrink:0;}
+.tmr-item.done .tmr-tick{background:#27ae60;border-color:#27ae60;color:#fff;}
+.tmr-text{font-size:12px;flex:1;line-height:1.3;color:#1a2b44;}
+.tmr-del{background:transparent;border:none;color:#b0bdd0;font-size:14px;cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1;}
+.tmr-del:hover{color:#e74c3c;}
+.tmr-add-row{display:flex;gap:6px;padding:4px 0 2px;border-top:1px solid #d1d9e6;margin-top:4px;padding-top:8px;}
+.tmr-input{background:#fff;border:1px solid #d1d9e6;color:#1a2b44;font-size:13px;padding:6px 9px;border-radius:3px;flex:1;}
+.tmr-input:focus{outline:none;border-color:#003087;}
+.tmr-add-btn{background:#003087;border:none;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;border-radius:3px;cursor:pointer;white-space:nowrap;}
+.tmr-add-btn:hover{background:#001f5c;}
+
 /* ── SETTINGS ── */
 .setgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;max-width:1200px;}
 .setcard{background:#fff;border:1px solid #d1d9e6;border-radius:6px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
@@ -537,6 +558,23 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 <div class="view on" id="v0">
   <div id="briefBanner"></div>
   <div class="bgrid" id="briefGrid"></div>
+
+  <!-- TOMORROW NOTES -->
+  <div class="tmr-panel" style="max-width:1400px;margin-top:14px;margin-bottom:0;">
+    <div class="tmr-hdr">
+      <span style="font-size:16px;">📋</span>
+      <span class="tmr-hdr-title">Notes for Tomorrow</span>
+      <span class="tmr-hdr-count" id="tmrCount"></span>
+    </div>
+    <div class="tmr-body">
+      <div id="tmrList"></div>
+      <div class="tmr-add-row">
+        <input class="tmr-input" id="tmrInput" placeholder="Add a note for tomorrow..." onkeydown="if(event.key==='Enter')addTmrNote()">
+        <button class="tmr-add-btn" onclick="addTmrNote()">+ Add</button>
+      </div>
+    </div>
+  </div>
+
   <div class="sobar">
     <span class="sostatus" id="soStatus">0/0 tasks complete</span>
     <button class="sobtn" id="soBtn">Sign Off Brief</button>
@@ -923,6 +961,7 @@ function defState(){
     retailJobs: [],
     salesJobs: [],
     actions: [],
+    tomorrowNotes: [],
     set: {
       adv:   [{id:'a1',name:'Paul',pin:''},{id:'a2',name:'Joe',pin:''},{id:'a3',name:'Oliver',pin:''}],
       tech:  [{id:'t1',name:'Tech 1',pin:''},{id:'t2',name:'Tech 2',pin:''},{id:'t3',name:'Tech 3',pin:''},{id:'t4',name:'Tech 4',pin:''},{id:'t5',name:'Tech 5',pin:''},{id:'t6',name:'Tech 6',pin:''}],
@@ -942,6 +981,7 @@ function applyState(data){
   setTimeout(onStateReady,0);
   if(!S.set)S.set=defState().set;
   if(!S.actions)S.actions=[];
+  if(!S.tomorrowNotes)S.tomorrowNotes=[];
   if(!S.set.adv)S.set.adv=defState().set.adv;
   if(!S.set.tech)S.set.tech=defState().set.tech;
   if(!S.set.sales)S.set.sales=defState().set.sales;
@@ -961,7 +1001,7 @@ function applyState(data){
 }
 
 function refreshAll(){
-  renderHeader();renderBrief();renderBriefBanner();
+  renderHeader();renderBrief();renderBriefBanner();renderTmrNotes();
   renderRetail();renderUrgStripR();
   renderSales();
   updateChaseBadge();
@@ -1893,6 +1933,7 @@ function renderBrief(){
     app(card,hdr,body);grid.appendChild(card);
   });
   renderSignoff();
+  renderTmrNotes();
 }
 
 function renderSignoff(){
@@ -1921,6 +1962,42 @@ function addAction(){
   if(document.getElementById('actionText'))document.getElementById('actionText').value='';
   if(document.getElementById('actionReg'))document.getElementById('actionReg').value='';
   save();
+}
+
+/* ═══════════════════════════════════════════
+   TOMORROW NOTES
+═══════════════════════════════════════════ */
+function renderTmrNotes(){
+  if(!S.tomorrowNotes)S.tomorrowNotes=[];
+  var list=document.getElementById('tmrList');
+  var countEl=document.getElementById('tmrCount');
+  if(!list)return;
+  var pending=S.tomorrowNotes.filter(function(n){return!n.done;}).length;
+  var total=S.tomorrowNotes.length;
+  if(countEl)countEl.textContent=total?pending+' remaining of '+total:'';
+  if(!total){list.innerHTML='<div class="tmr-empty">No notes yet — add something for tomorrow below.</div>';return;}
+  list.innerHTML='';
+  S.tomorrowNotes.forEach(function(note,i){
+    var item=mk('div','tmr-item'+(note.done?' done':''));
+    var tick=mk('div','tmr-tick');tick.textContent=note.done?'✓':'';
+    tick.addEventListener('click',function(){S.tomorrowNotes[i].done=!S.tomorrowNotes[i].done;save();renderTmrNotes();});
+    var txt=mk('span','tmr-text');txt.textContent=note.text;
+    var del=mk('button','tmr-del');del.textContent='✕';del.title='Remove note';
+    del.addEventListener('click',function(){S.tomorrowNotes.splice(i,1);save();renderTmrNotes();});
+    app(item,tick,txt,del);
+    list.appendChild(item);
+  });
+}
+
+function addTmrNote(){
+  var inp=document.getElementById('tmrInput');
+  var text=inp?inp.value.trim():'';
+  if(!text)return;
+  if(!S.tomorrowNotes)S.tomorrowNotes=[];
+  S.tomorrowNotes.push({id:uid(),text:text,done:false});
+  inp.value='';
+  save();renderTmrNotes();
+  showToast('Note added for tomorrow','newjob');
 }
 
 
