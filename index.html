@@ -3861,6 +3861,9 @@ function commitTechStage(){
   if(stageId==='ready'||stageId==='handover') job.readyDate=new Date().toISOString();
   else if(stageId===firstStage) job.readyDate=null;
 
+  /* Auto clock on/off based on stage move */
+  autoManageClockForStage(job, _tsmBoard, stageId);
+
   job.stage = stageId;
   save();
   closeTechStageModal();
@@ -4589,6 +4592,54 @@ function toggleJobClock(){
     refreshTsmClockBtn();
     renderRetail();renderSales();
     showToast('Clocked on: '+job.reg,'newjob');
+  }
+}
+
+/* ── Auto clock on/off when a tech moves a job's stage ──
+   In Progress (retail 'inprog' / sales 'inprep')  → auto clock ON
+   Awaiting Parts / Awaiting Auth (and PDI/Handover for sales) → auto clock OFF (pause)
+   Ready (retail) → auto clock OFF (stop)
+   Only applies when the change is made by the assigned tech themselves (tech view). */
+function autoManageClockForStage(job, board, newStageId){
+  if(!currentUser || currentUser.type!=='tech') return;
+  var techId = currentUser.techId;
+  var techName = currentUser.name;
+  if(!techId || job.techId!==techId) return;
+  if(!S.jobTimings) S.jobTimings=[];
+
+  var inProgressStage = board==='retail' ? 'inprog' : 'inprep';
+  var pauseStages = board==='retail' ? ['wparts','wauth'] : ['wparts','pdicheck'];
+  var stopStages  = board==='retail' ? ['ready'] : ['handover'];
+
+  function getActive(){
+    return S.jobTimings.find(function(t){return t.jobId===job.id&&t.techId===techId&&!t.endTime;});
+  }
+  function endTiming(t){
+    var endISO=new Date().toISOString();
+    t.endTime=timeStrNow();
+    t.endISO=endISO;
+    t.durationMins=Math.round((new Date(endISO).getTime()-new Date(t.startISO).getTime())/60000);
+  }
+
+  if(newStageId===inProgressStage){
+    var active=getActive();
+    if(!active){
+      /* clock off any other active job for this tech first */
+      S.jobTimings.forEach(function(t){ if(t.techId===techId&&!t.endTime) endTiming(t); });
+      S.jobTimings.push({
+        id:'jt'+Date.now(), jobId:job.id, reg:job.reg||'', wipNo:job.wipNo||'',
+        board:board, techId:techId, techName:techName, date:dateStrISO(),
+        startTime:timeStrNow(), startISO:new Date().toISOString(),
+        endTime:null, endISO:null, durationMins:null
+      });
+      showToast('Auto clocked on: '+(job.reg||'job'),'newjob');
+    }
+  } else if(pauseStages.indexOf(newStageId)!==-1 || stopStages.indexOf(newStageId)!==-1){
+    var active2=getActive();
+    if(active2){
+      endTiming(active2);
+      showToast('Auto clocked off: '+(job.reg||'job')+' ('+minsToHHMM(active2.durationMins)+')','onsite');
+    }
   }
 }
 
