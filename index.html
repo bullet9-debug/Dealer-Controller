@@ -2987,7 +2987,36 @@ function renderSettings(){
       })(m,pinLbl);
       var del=mk('button');del.textContent='✕';
       del.addEventListener('click',function(){S.set[type].splice(i,1);save();renderSettings();});
-      app(row,sp,pinLbl,pinIn,pinBtn,del);ul.appendChild(row);
+      if(type==='tech'){
+        // Adjustable contracted hours/day (default 8, both up and down)
+        if(m.contractedHours==null||m.contractedHours==='')m.contractedHours=8;
+        var hrsWrap=mk('span','');
+        hrsWrap.style.cssText='display:flex;align-items:center;gap:3px;flex:none;background:#f4f7fc;border-radius:6px;padding:2px 4px;';
+        var hrsLbl=mk('span','');hrsLbl.style.cssText='font-size:10px;color:#8fa0b8;margin-right:2px;';hrsLbl.textContent='Hrs/day';
+        var minusBtn=mk('button');minusBtn.textContent='−';
+        minusBtn.style.cssText='width:20px;height:20px;border:none;border-radius:4px;background:#e6ecf5;color:#003087;font-weight:800;font-size:13px;line-height:1;cursor:pointer;';
+        var hrsVal=mk('span','');hrsVal.style.cssText='font-size:12px;font-weight:800;color:#1a2b44;width:28px;text-align:center;';
+        hrsVal.textContent=m.contractedHours+'h';
+        var plusBtn=mk('button');plusBtn.textContent='+';
+        plusBtn.style.cssText='width:20px;height:20px;border:none;border-radius:4px;background:#e6ecf5;color:#003087;font-weight:800;font-size:13px;line-height:1;cursor:pointer;';
+        (function(member,valEl){
+          minusBtn.addEventListener('click',function(){
+            var h=parseFloat(member.contractedHours)||8;
+            h=Math.max(1,Math.round((h-0.5)*10)/10);
+            member.contractedHours=h;valEl.textContent=h+'h';save();
+          });
+          plusBtn.addEventListener('click',function(){
+            var h=parseFloat(member.contractedHours)||8;
+            h=Math.min(12,Math.round((h+0.5)*10)/10);
+            member.contractedHours=h;valEl.textContent=h+'h';save();
+          });
+        })(m,hrsVal);
+        app(hrsWrap,hrsLbl,minusBtn,hrsVal,plusBtn);
+        app(row,sp,hrsWrap,pinLbl,pinIn,pinBtn,del);
+      } else {
+        app(row,sp,pinLbl,pinIn,pinBtn,del);
+      }
+      ul.appendChild(row);
     });
     listEl.appendChild(ul);
   });
@@ -3892,7 +3921,7 @@ function addMemberTech(){
   var pinVal  = document.getElementById('addTechPin').value.trim();
   if(!nameVal){ alert('Enter a technician name.'); return; }
   if(pinVal && !/^[0-9]{4}$/.test(pinVal)){ alert('PIN must be exactly 4 digits (or leave blank).'); return; }
-  S.set.tech.push({id:'t'+uid(), name:nameVal, pin:pinVal||''});
+  S.set.tech.push({id:'t'+uid(), name:nameVal, pin:pinVal||'', contractedHours:8});
   document.getElementById('addTechIn').value='';
   document.getElementById('addTechPin').value='';
   save(); renderSettings();
@@ -4556,7 +4585,7 @@ function toggleJobClock(){
     active.endISO=endISO;
     var startMs=new Date(active.startISO).getTime();
     var endMs=new Date(endISO).getTime();
-    active.durationMins=Math.round((endMs-startMs)/60000);
+    active.durationMins=msToMinsUp(endMs-startMs);
     stopTsmTimer();
     save();
     refreshTsmClockBtn();
@@ -4569,7 +4598,7 @@ function toggleJobClock(){
         var endISO2=new Date().toISOString();
         t.endTime=timeStrNow();
         t.endISO=endISO2;
-        t.durationMins=Math.round((new Date(endISO2).getTime()-new Date(t.startISO).getTime())/60000);
+        t.durationMins=msToMinsUp(new Date(endISO2).getTime()-new Date(t.startISO).getTime());
       }
     });
     var newTiming={
@@ -4618,7 +4647,7 @@ function autoManageClockForStage(job, board, newStageId){
     var endISO=new Date().toISOString();
     t.endTime=timeStrNow();
     t.endISO=endISO;
-    t.durationMins=Math.round((new Date(endISO).getTime()-new Date(t.startISO).getTime())/60000);
+    t.durationMins=msToMinsUp(new Date(endISO).getTime()-new Date(t.startISO).getTime());
   }
 
   if(newStageId===inProgressStage){
@@ -4653,6 +4682,25 @@ function jobTimingBadge(jobId){
   return '<span class="job-timer-active"><span class="job-timer-dot"></span>'+escH(tname)+' active</span>';
 }
 
+/* ── Round elapsed milliseconds UP to the nearest whole minute ──
+   Ensures every second worked counts — a tech clocked on/off within
+   the same minute still registers at least 1 minute instead of 0. ── */
+function msToMinsUp(ms){
+  if(!ms||ms<=0)return 0;
+  return Math.ceil(ms/60000);
+}
+
+/* ── Get technician's contracted daily minutes (adjustable per tech, default 8 hrs) ── */
+function getTechContractedHours(techId){
+  var t=S.set.tech.find(function(x){return x.id===techId;});
+  var hrs=(t&&t.contractedHours!=null&&t.contractedHours!=='')?parseFloat(t.contractedHours):8;
+  if(isNaN(hrs)||hrs<=0)hrs=8;
+  return hrs;
+}
+function getTechStdMins(techId){
+  return Math.round(getTechContractedHours(techId)*60);
+}
+
 /* ── Clock In ── */
 function clockIn(techId, techName){
   if(!S.clockRecords)S.clockRecords=[];
@@ -4671,8 +4719,9 @@ function clockIn(techId, techName){
     techName:techName,
     date:today,
     clockIn:nowTime,
+    clockInISO:new Date().toISOString(),
     clockOut:null,
-    breakMins:30,  // default 30-min break
+    breakMins:60,  // default 1-hour lunch break
     totalMins:null
   };
   S.clockRecords.push(rec);
@@ -4686,14 +4735,23 @@ function clockOut(techId){
   if(!S.clockRecords)return;
   var today=dateStrISO();
   var nowTime=timeStrNow();
+  var nowISO=new Date().toISOString();
   var rec=S.clockRecords.find(function(r){return r.techId===techId&&r.date===today&&!r.clockOut;});
   if(!rec)return;
   rec.clockOut=nowTime;
-  var inMins=parseHHMM(rec.clockIn);
-  var outMins=parseHHMM(rec.clockOut);
-  if(inMins!==null&&outMins!==null&&outMins>inMins){
-    rec.totalMins=outMins-inMins-rec.breakMins;
-    if(rec.totalMins<0)rec.totalMins=0;
+  rec.clockOutISO=nowISO;
+  if(rec.clockInISO){
+    // Precise second-level elapsed time, rounded UP to the nearest minute
+    var elapsedMins=msToMinsUp(new Date(nowISO).getTime()-new Date(rec.clockInISO).getTime());
+    rec.totalMins=Math.max(0, elapsedMins-rec.breakMins);
+  } else {
+    // Fallback for older records without a precise timestamp
+    var inMins=parseHHMM(rec.clockIn);
+    var outMins=parseHHMM(rec.clockOut);
+    if(inMins!==null&&outMins!==null&&outMins>inMins){
+      rec.totalMins=outMins-inMins-rec.breakMins;
+      if(rec.totalMins<0)rec.totalMins=0;
+    }
   }
   save();
   renderAttendance();
@@ -4788,9 +4846,12 @@ function renderClocking(){
   var clocked=recs.filter(function(r){return r.clockOut&&r.totalMins!==null;});
   var totalWorked=clocked.reduce(function(a,r){return a+(r.totalMins||0);},0);
   var avgWorked=clocked.length?Math.round(totalWorked/clocked.length):0;
-  // Standard day = 7.5 hrs = 450 mins for efficiency
-  var STD_DAY=450;
-  var avgEff=avgWorked?Math.round((avgWorked/STD_DAY)*100):0;
+  // Efficiency target is each technician's own adjustable contracted hours (default 8hrs/day)
+  var effsForAvg=clocked.map(function(r){
+    var std=getTechStdMins(r.techId);
+    return std?Math.round((r.totalMins/std)*100):0;
+  });
+  var avgEff=effsForAvg.length?Math.round(effsForAvg.reduce(function(a,b){return a+b;},0)/effsForAvg.length):0;
 
   var sg=document.createElement('div');
   sg.className='clock-summary-grid';
@@ -4840,7 +4901,8 @@ function renderClocking(){
     };
     var eff=null;
     if(rec.totalMins!==null&&rec.totalMins!==undefined){
-      eff=Math.min(Math.round((rec.totalMins/STD_DAY)*100),120);
+      var stdMins=getTechStdMins(rec.techId);
+      eff=Math.min(Math.round((rec.totalMins/stdMins)*100),120);
     }
     var effClass=eff===null?'':eff>=90?'good':eff>=75?'warn':'low';
     var statusHtml=rec.clockOut
@@ -4916,11 +4978,19 @@ function renderClockManual(rec){
     rec.clockIn=newIn||rec.clockIn;
     rec.clockOut=newOut||null;
     rec.breakMins=newBreak;
+    // Manual override supersedes precise auto-tracked timestamps
+    rec.clockInISO=null;
+    rec.clockOutISO=null;
     if(rec.clockIn&&rec.clockOut){
       var inM=parseHHMM(rec.clockIn);
       var outM=parseHHMM(rec.clockOut);
-      rec.totalMins=(outM>inM)?outM-inM-rec.breakMins:null;
-      if(rec.totalMins!==null&&rec.totalMins<0)rec.totalMins=0;
+      if(outM>=inM){
+        // Same minute in/out still counts as 1 minute worked, not 0
+        var rawMins=Math.max(1,outM-inM);
+        rec.totalMins=Math.max(0,rawMins-rec.breakMins);
+      } else {
+        rec.totalMins=null;
+      }
     } else {
       rec.totalMins=null;
     }
@@ -5042,9 +5112,9 @@ function exportClockingPDF(){
   doc.text('Technician Clocking Report',margin,y);y+=6;
   doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(107,124,150);
   doc.text('Period: '+(targetDates.length===1?targetDates[0]:targetDates[0]+' to '+targetDates[targetDates.length-1])+' | Generated: '+new Date().toLocaleString('en-GB'),margin,y);y+=8;
-  var STD_DAY=450;
   var rows=recs.map(function(r){
-    var eff=r.totalMins?Math.min(Math.round((r.totalMins/STD_DAY)*100),120):null;
+    var std=getTechStdMins(r.techId);
+    var eff=r.totalMins?Math.min(Math.round((r.totalMins/std)*100),120):null;
     return[r.techName,r.date,r.clockIn||'--',r.clockOut||'Active',(r.breakMins||0)+'m',r.totalMins!==null?minsToHHMM(r.totalMins):'Live',eff!==null?eff+'%':'—'];
   });
   doc.autoTable({
@@ -5060,8 +5130,10 @@ function exportClockingPDF(){
   var clocked=recs.filter(function(r){return r.totalMins!==null;});
   var totalM=clocked.reduce(function(a,r){return a+r.totalMins;},0);
   var avgM=clocked.length?Math.round(totalM/clocked.length):0;
+  var pdfEffs=clocked.map(function(r){var std=getTechStdMins(r.techId);return std?Math.round((r.totalMins/std)*100):0;});
+  var pdfAvgEff=pdfEffs.length?Math.round(pdfEffs.reduce(function(a,b){return a+b;},0)/pdfEffs.length):0;
   doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(0,48,135);
-  doc.text('Summary: '+recs.length+' sessions | '+clocked.length+' complete | Total: '+minsToHHMM(totalM)+' | Avg: '+minsToHHMM(avgM)+' | Avg Eff: '+(avgM?Math.round((avgM/STD_DAY)*100)+'%':'—'),margin,finalY);
+  doc.text('Summary: '+recs.length+' sessions | '+clocked.length+' complete | Total: '+minsToHHMM(totalM)+' | Avg: '+minsToHHMM(avgM)+' | Avg Eff: '+(clocked.length?pdfAvgEff+'%':'—'),margin,finalY);
   // Job Timings section
   var jts=(S.jobTimings||[]).filter(function(t){return targetDates.indexOf(t.date)!==-1;});
   if(jts.length){
