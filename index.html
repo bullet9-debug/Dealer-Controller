@@ -170,6 +170,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 .jrow2{display:flex;align-items:center;gap:5px;margin-bottom:3px;flex-wrap:wrap;}
 .jveh{font-size:10px;color:#6b7c96;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;}
 .jcolour{display:inline-block;margin-left:5px;font-size:9px;font-weight:700;background:#f0f2f5;border:1px solid #d1d9e6;border-radius:2px;padding:1px 4px;color:#4a5f7a;white-space:nowrap;vertical-align:middle;}
+.jvin{display:inline-block;margin-left:5px;font-size:9px;font-weight:700;font-family:monospace;letter-spacing:0.5px;background:#eef1f7;border:1px solid #c8d4e8;border-radius:2px;padding:1px 4px;color:#5a6f8a;white-space:nowrap;vertical-align:middle;}
 .jadv{font-size:10px;font-weight:700;color:#8fa0b8;}
 .jdays{font-size:10px;font-weight:700;color:#6b7c96;background:#f0f2f5;border-radius:2px;padding:1px 4px;border:1px solid #d1d9e6;white-space:nowrap;margin-left:auto;}
 .jdays.ov{color:#c0392b;background:rgba(231,76,60,0.08);border-color:#e74c3c;}
@@ -765,6 +766,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
         <div class="fg"><label class="flbl">Make</label><input class="finput" id="fMake" placeholder="e.g. Vauxhall" autocomplete="off"></div>
         <div class="fg"><label class="flbl">Model</label><input class="finput" id="fModel" placeholder="e.g. Mokka" autocomplete="off"></div>
         <div class="fg"><label class="flbl">Colour</label><input class="finput" id="fColour" placeholder="e.g. Silver" autocomplete="off"></div>
+        <div class="fg" style="max-width:200px;"><label class="flbl">VIN / Chassis No.</label><input class="finput" id="fVin" placeholder="17-character VIN" style="font-family:monospace;letter-spacing:1px;text-transform:uppercase;" maxlength="17" autocomplete="off"></div>
       </div>
       <input type="hidden" id="fMotExp">
       <input type="hidden" id="fTaxDue">
@@ -786,6 +788,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
           <div id="dvlaExtraRow" style="display:flex;gap:4px;flex-wrap:wrap;padding:5px 8px;border-top:1px solid #c8d4e8;background:#fff;"></div>
         </div>
         <div class="dvla-detail" id="dvlaDetail" style="display:none;"></div>
+        <div style="font-size:10px;color:#8fa0b8;margin-top:4px;">Note: the DVLA API only returns Make (not Model or VIN) — please enter Model and VIN manually.</div>
       </div>
 
       <!-- Stage selector (populated by JS based on board) -->
@@ -1477,6 +1480,7 @@ function makeRetailCard(job){
   var vehMakeModel=[job.make||(job.veh?job.veh.split(' ')[0]:''),job.model||(job.veh?job.veh.split(' ').slice(1,3).join(' '):'')].filter(Boolean).join(' ');
   var veh=mk('div','jveh');veh.textContent=vehMakeModel;
   if(job.colour){var colB=mk('span','jcolour');colB.textContent=job.colour;veh.appendChild(colB);}
+  if(job.vin){var vinB=mk('span','jvin');vinB.textContent=job.vin;veh.appendChild(vinB);}
   var adv=mk('div','jadv');
   var advName=(S.set.adv.filter(function(x){return x.id===job.advId;})[0]||{}).name||'';
   var techName=(S.set.tech.filter(function(x){return x.id===job.techId;})[0]||{}).name||'';
@@ -1581,6 +1585,7 @@ function makeSalesCard(job){
   var vehMakeModel2=[job.make||(job.veh?job.veh.split(' ')[0]:''),job.model||(job.veh?job.veh.split(' ').slice(1,3).join(' '):'')].filter(Boolean).join(' ');
   var veh=mk('div','jveh');veh.textContent=vehMakeModel2;
   if(job.colour){var colB2=mk('span','jcolour');colB2.textContent=job.colour;veh.appendChild(colB2);}
+  if(job.vin){var vinB2=mk('span','jvin');vinB2.textContent=job.vin;veh.appendChild(vinB2);}
   var salesName=(S.set.sales.filter(function(x){return x.id===job.salesId;})[0]||{}).name||'';
   var techName=(S.set.tech.filter(function(x){return x.id===job.techId;})[0]||{}).name||'';
   var adv=mk('div','jadv');adv.textContent=[salesName,techName].filter(Boolean).join(' · ');
@@ -1755,7 +1760,7 @@ function _getJobLines(board){
 }
 
 function clearModal(){
-  ['fReg','fMake','fModel','fColour','fWipNo','fLabHrs','fSalesLabHrs','fValue','fAuthRef','fNotes'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  ['fReg','fMake','fModel','fColour','fVin','fWipNo','fLabHrs','fSalesLabHrs','fValue','fAuthRef','fNotes'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   document.querySelectorAll('.ftog').forEach(function(b){var f=b.dataset.flag;b.className='ftog';});
   var todayIso=new Date().toISOString().split('T')[0];isoToDp(todayIso,'fDateIn');clearDp('fEta');clearDp('fHandover');
   ['fMotExp','fTaxDue','fTaxStatus'].forEach(function(id){document.getElementById(id).value='';});
@@ -1776,6 +1781,7 @@ function fillJobData(job){
   document.getElementById('fMake').value=job.make||(job.veh?job.veh.split(' ')[0]||'':'');
   document.getElementById('fModel').value=job.model||(job.veh?job.veh.split(' ').slice(1,3).join(' ')||'':'');
   document.getElementById('fColour').value=job.colour||'';
+  document.getElementById('fVin').value=job.vin||'';
   document.getElementById('fWipNo').value=job.wipNo||'';
   document.getElementById('fNotes').value=job.notes||'';
   document.getElementById('fMotExp').value=job.motExp||'';
@@ -1895,6 +1901,7 @@ document.getElementById('saveBtn').addEventListener('click',function(){
     make:document.getElementById('fMake').value.trim(),
     model:document.getElementById('fModel').value.trim(),
     colour:document.getElementById('fColour').value.trim(),
+    vin:document.getElementById('fVin').value.trim().toUpperCase(),
     wipNo:document.getElementById('fWipNo').value.trim(),
     stage:modalStage,
     repCats:modalCats.slice(),
@@ -3137,6 +3144,8 @@ function populateDVLAResult(data,fromCache){
   if(!document.getElementById('fMake').value&&make)document.getElementById('fMake').value=capitalise(make);
   if(!document.getElementById('fModel').value&&model)document.getElementById('fModel').value=capitalise(model);
   if(!document.getElementById('fColour').value&&colour)document.getElementById('fColour').value=capitalise(colour);
+  var vin=data.vin||data.vinNumber||'';
+  if(!document.getElementById('fVin').value&&vin)document.getElementById('fVin').value=vin.toUpperCase();
   /* --- store MOT/tax for save --- */
   var fMotExpEl=document.getElementById('fMotExp');if(fMotExpEl)fMotExpEl.value=motExp||'';
   var fTaxDueEl=document.getElementById('fTaxDue');if(fTaxDueEl)fTaxDueEl.value=taxDue||'';
