@@ -1944,14 +1944,22 @@ document.getElementById('saveBtn').addEventListener('click',function(){
       var idx=S.retailJobs.findIndex(function(j){return j.id===editId;});
       if(idx!==-1){
         var prev=S.retailJobs[idx];
+        var oldStage=prev.stage, oldTechId=prev.techId;
         if(modalStage==='ready'&&prev.stage!=='ready')baseData.readyDate=new Date().toISOString();
         else if(modalStage!=='ready')baseData.readyDate=null;
         else baseData.readyDate=prev.readyDate||new Date().toISOString();
         S.retailJobs[idx]=Object.assign({},prev,baseData);
+        var updatedRJob=S.retailJobs[idx];
+        if(oldTechId && oldTechId!==updatedRJob.techId)stopActiveTimingsForJob(updatedRJob.id);
+        if(updatedRJob.techId && (oldStage!==modalStage || oldTechId!==updatedRJob.techId)){
+          _applyAutoClockForStage(updatedRJob, 'retail', modalStage, updatedRJob.techId, _resolveTechName(updatedRJob.techId));
+        }
       }
     }else{
       if(modalStage==='ready')baseData.readyDate=new Date().toISOString();
-      S.retailJobs.push(Object.assign({id:uid()},baseData));
+      var newRJob=Object.assign({id:uid()},baseData);
+      S.retailJobs.push(newRJob);
+      if(newRJob.techId)_applyAutoClockForStage(newRJob, 'retail', modalStage, newRJob.techId, _resolveTechName(newRJob.techId));
     }
     save();closeModal();renderRetail();renderHeader();renderUrgStripR();
   }else{
@@ -1962,14 +1970,22 @@ document.getElementById('saveBtn').addEventListener('click',function(){
       var sidx=S.salesJobs.findIndex(function(j){return j.id===editId;});
       if(sidx!==-1){
         var sprev=S.salesJobs[sidx];
+        var oldSStage=sprev.stage, oldSTechId=sprev.techId;
         if(modalStage==='handover'&&sprev.stage!=='handover')baseData.readyDate=new Date().toISOString();
         else if(modalStage!=='handover')baseData.readyDate=null;
         else baseData.readyDate=sprev.readyDate||new Date().toISOString();
         S.salesJobs[sidx]=Object.assign({},sprev,baseData);
+        var updatedSJob=S.salesJobs[sidx];
+        if(oldSTechId && oldSTechId!==updatedSJob.techId)stopActiveTimingsForJob(updatedSJob.id);
+        if(updatedSJob.techId && (oldSStage!==modalStage || oldSTechId!==updatedSJob.techId)){
+          _applyAutoClockForStage(updatedSJob, 'sales', modalStage, updatedSJob.techId, _resolveTechName(updatedSJob.techId));
+        }
       }
     }else{
       if(modalStage==='handover')baseData.readyDate=new Date().toISOString();
-      S.salesJobs.push(Object.assign({id:uid()},baseData));
+      var newSJob=Object.assign({id:uid()},baseData);
+      S.salesJobs.push(newSJob);
+      if(newSJob.techId)_applyAutoClockForStage(newSJob, 'sales', modalStage, newSJob.techId, _resolveTechName(newSJob.techId));
     }
     save();closeModal();renderSales();renderHeader();
   }
@@ -4754,11 +4770,24 @@ function toggleJobClock(){
    Awaiting Parts / Awaiting Auth (and PDI/Handover for sales) → auto clock OFF (pause)
    Ready (retail) → auto clock OFF (stop)
    Only applies when the change is made by the assigned tech themselves (tech view). */
+function _resolveTechName(techId){
+  var t=(S.set.tech||[]).find(function(x){return x.id===techId;});
+  return t?t.name:'';
+}
 function autoManageClockForStage(job, board, newStageId){
   if(!currentUser || currentUser.type!=='tech') return;
   var techId = currentUser.techId;
   var techName = currentUser.name;
   if(!techId || job.techId!==techId) return;
+  _applyAutoClockForStage(job, board, newStageId, techId, techName);
+}
+/* Core auto clock on/off logic, usable for any tech (self-service via TSM, or
+   admin/advisor assigning a tech and moving the stage from the main job modal).
+   In Progress (retail 'inprog' / sales 'inprep')  → auto clock ON
+   Awaiting Parts / Awaiting Auth (and PDI/Handover for sales) → auto clock OFF (pause)
+   Ready (retail) → auto clock OFF (stop) */
+function _applyAutoClockForStage(job, board, newStageId, techId, techName){
+  if(!techId) return;
   if(!S.jobTimings) S.jobTimings=[];
 
   var inProgressStage = board==='retail' ? 'inprog' : 'inprep';
@@ -4786,7 +4815,7 @@ function autoManageClockForStage(job, board, newStageId){
         startTime:timeStrNow(), startISO:new Date().toISOString(),
         endTime:null, endISO:null, durationMins:null
       });
-      showToast('Auto clocked on: '+(job.reg||'job'),'newjob');
+      showToast('Auto clocked on: '+(job.reg||'job')+(techName?' — '+techName:''),'newjob');
     }
   } else if(pauseStages.indexOf(newStageId)!==-1 || stopStages.indexOf(newStageId)!==-1){
     var active2=getActive();
