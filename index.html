@@ -186,6 +186,9 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 .f-wauth{background:rgba(230,126,34,0.1);color:#ca6f1e;border:1px solid #e67e22;}
 .f-vip{background:#003087;color:#fff;}
 .f-fleet{background:rgba(0,48,135,0.1);color:#003087;border:1px dashed #003087;}
+.f-hold{background:rgba(107,124,150,0.15);color:#4a5f7a;border:1px solid #6b7c96;}
+.acopill{font-size:11px;font-weight:800;padding:6px 16px;border-radius:20px;border:1px solid #d1d9e6;background:#f0f2f5;color:#6b7c96;cursor:pointer;letter-spacing:.5px;transition:all .15s;}
+.acopill.on{background:#27ae60;border-color:#27ae60;color:#fff;}
 .fauto-ov{background:rgba(231,76,60,0.1);color:#c0392b;border:1px dashed #e74c3c;}
 .fauto-today{background:rgba(230,126,34,0.15);color:#ca6f1e;border:1px dashed #e67e22;}
 .fauto-soon{background:rgba(0,48,135,0.1);color:#003087;border:1px dashed #003087;}
@@ -383,6 +386,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 .ftog.on-wauth{background:rgba(230,126,34,0.1);border-color:#e67e22;color:#ca6f1e;}
 .ftog.on-vip{background:#003087;border-color:#003087;color:#fff;}
 .ftog.on-fleet{background:rgba(0,48,135,0.1);border-color:#003087;color:#003087;}
+.ftog.on-hold{background:rgba(107,124,150,0.15);border-color:#6b7c96;color:#4a5f7a;}
 
 /* DVLA lookup */
 .dvla-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap;}
@@ -745,6 +749,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
     <div class="setcard"><div class="settitle">Technicians</div><div class="setbody" id="techList"></div><div class="addrow"><input class="addinput" id="addTechIn" placeholder="New technician..." style="flex:2"><input class="addinput" id="addTechPin" placeholder="PIN (4 digits)" maxlength="4" inputmode="numeric" style="width:110px;letter-spacing:3px;" type="password"><button class="addbtn" onclick="addMemberTech()">Add</button></div></div>
     <div class="setcard"><div class="settitle">Sales Executives</div><div class="setbody" id="salesList"></div><div class="addrow"><input class="addinput" id="addSalesIn" placeholder="New sales exec..."><button class="addbtn" onclick="addMember('sales')">Add</button></div></div>
     <div class="setcard"><div class="settitle">DVLA Vehicle Lookup</div><div class="setbody"><p>Enter your DVLA Vehicle Enquiry Service API key. Get a free key at <b>developer-portal.driver-vehicle-licensing.agency.gov.uk</b></p><label class="flbl" style="display:block;margin-bottom:4px;">API Key</label><div style="display:flex;gap:6px;"><input class="addinput" id="dvlaKeyInput" placeholder="Paste your API key..." type="password" style="flex:1;font-family:monospace;"><button class="addbtn" onclick="saveDVLAKey()">Save</button></div><div id="dvlaKeyStatus" style="font-size:11px;margin-top:6px;color:#6b7c96;"></div><button class="btn" style="margin-top:4px;font-size:11px;" onclick="clearDVLACache()">Clear Lookup Cache</button></div></div>
+    <div class="setcard"><div class="settitle">Auto Clock-Off</div><div class="setbody"><p>At the set time, any technician still clocked onto a job will be automatically clocked off, and that job will be flagged <b>ON HOLD</b> until it's picked back up.</p><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;"><button class="acopill" id="acoToggle" onclick="toggleAutoClockOff()">OFF</button><input type="time" class="addinput" id="acoTimeInput" style="width:120px;"><button class="addbtn" onclick="saveAutoClockOffSettings()">Save Time</button></div><div id="acoStatus" style="font-size:11px;color:#6b7c96;"></div></div></div>
     <div class="setcard"><div class="settitle">Data</div><div class="setbody"><p>Export saves all data to a JSON file. Import restores it.</p><button class="btn gr" onclick="exportData()">Export Data</button><label class="btn" style="cursor:pointer;text-align:center;margin-left:6px;">Import Data<input type="file" accept=".json" id="importFile" style="display:none;" onchange="importData(event)"></label></div></div>
     <div class="setcard"><div class="settitle">Danger Zone</div><div class="setbody"><button class="btn dr" onclick="clearJobs()">Clear All Jobs</button> <button class="btn dr" onclick="clearActions()">Clear Actions</button> <button class="btn dr" onclick="resetAll()" style="margin-top:6px;">Reset Everything</button></div></div>
     <div class="setcard"><div class="settitle">Admin PIN</div><div class="setbody"><p>Change your 4-digit admin PIN.</p><div style="display:flex;gap:6px;"><input class="addinput" id="newPinIn" placeholder="New 4-digit PIN" type="password" inputmode="numeric" maxlength="4" style="width:140px;letter-spacing:4px;font-weight:800;"><button class="addbtn" onclick="changePin()">Update PIN</button></div></div></div>
@@ -810,6 +815,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
             <button class="ftog" data-flag="wauth">Warranty Auth</button>
             <button class="ftog" data-flag="vip">VIP</button>
             <button class="ftog" data-flag="fleet">Fleet</button>
+            <button class="ftog" data-flag="hold">On Hold</button>
           </div>
         </div>
       </div>
@@ -1049,7 +1055,8 @@ function defState(){
       adv:   [{id:'a1',name:'Paul',pin:''},{id:'a2',name:'Joe',pin:''},{id:'a3',name:'Oliver',pin:''}],
       tech:  [{id:'t1',name:'Tech 1',pin:''},{id:'t2',name:'Tech 2',pin:''},{id:'t3',name:'Tech 3',pin:''},{id:'t4',name:'Tech 4',pin:''},{id:'t5',name:'Tech 5',pin:''},{id:'t6',name:'Tech 6',pin:''}],
       sales: [{id:'s1',name:'James',pin:''},{id:'s2',name:'Daniel',pin:''}],
-      adminPin: '3333'
+      adminPin: '3333',
+      autoClockOff: {enabled:false, time:'17:00', lastRun:null}
     }
   };
 }
@@ -1071,6 +1078,7 @@ function applyState(data){
   if(!S.set.tech)S.set.tech=defState().set.tech;
   if(!S.set.sales)S.set.sales=defState().set.sales;
   if(!S.set.adminPin||S.set.adminPin==='1234')S.set.adminPin='3333';
+  if(!S.set.autoClockOff)S.set.autoClockOff={enabled:false,time:'17:00',lastRun:null};
   (S.set.tech||[]).forEach(function(t){if(!t.pin)t.pin='';});
   (S.set.adv||[]).forEach(function(t){if(!t.pin)t.pin='';});
   (S.set.sales||[]).forEach(function(t){if(!t.pin)t.pin='';});
@@ -1496,7 +1504,7 @@ function makeRetailCard(job){
   var flagRow=mk('div','jflags');
   autoFlags.forEach(function(af){var f=mk('span','flag '+af.cls);f.textContent=af.label;flagRow.appendChild(f);});
   (job.flags||[]).forEach(function(f){
-    var flagMap={wait:{cls:'f-wait',label:'WAITING'},loan:{cls:'f-loan',label:'LOAN'},parts:{cls:'f-parts',label:'PARTS'},callback:{cls:'f-callback',label:'CALLBACK'},complaint:{cls:'f-complaint',label:'COMPLAINT'},wauth:{cls:'f-wauth',label:'W/AUTH'},vip:{cls:'f-vip',label:'VIP'},fleet:{cls:'f-fleet',label:'FLEET'}};
+    var flagMap={wait:{cls:'f-wait',label:'WAITING'},loan:{cls:'f-loan',label:'LOAN'},parts:{cls:'f-parts',label:'PARTS'},callback:{cls:'f-callback',label:'CALLBACK'},complaint:{cls:'f-complaint',label:'COMPLAINT'},wauth:{cls:'f-wauth',label:'W/AUTH'},vip:{cls:'f-vip',label:'VIP'},fleet:{cls:'f-fleet',label:'FLEET'},hold:{cls:'f-hold',label:'ON HOLD'}};
     var fm=flagMap[f];if(fm){var fb=mk('span','flag '+fm.cls);fb.textContent=fm.label;flagRow.appendChild(fb);}
   });
   var detail=mk('div','jcard-detail');
@@ -1597,6 +1605,11 @@ function makeSalesCard(job){
   if(job.motExp){var mDate2=new Date(job.motExp);var mDays2=Math.round((mDate2-now3)/86400000);var mEl2=mk('div','jcom-i'+(mDate2<now3?' c':mDays2<=30?' w':''));mEl2.textContent='MOT: '+(mDate2<now3?'EXPIRED ':mDays2<=30?'Due soon ':'Until ')+fmtDate(job.motExp)+(mDays2>0&&mDays2<=30?' ('+mDays2+'d)':'');dvlaRow2.appendChild(mEl2);}
   if(job.taxDue){var tDate2=new Date(job.taxDue);var tDays2=Math.round((tDate2-now3)/86400000);var tEl2=mk('div','jcom-i'+(tDate2<now3?' c':tDays2<=30?' w':''));tEl2.textContent='Tax: '+(tDate2<now3?'EXPIRED ':tDays2<=30?'Due soon ':'Until ')+fmtDate(job.taxDue)+(tDays2>0&&tDays2<=30?' ('+tDays2+'d)':'');dvlaRow2.appendChild(tEl2);}
   else if(job.taxStatus&&!job.taxDue){var tsEl2=mk('div','jcom-i'+(/taxed/i.test(job.taxStatus)?'':' c'));tsEl2.textContent='Tax: '+capitalise(job.taxStatus);dvlaRow2.appendChild(tsEl2);}
+  var flagRow2=mk('div','jflags');
+  (job.flags||[]).forEach(function(f){
+    var flagMap2={hold:{cls:'f-hold',label:'ON HOLD'},vip:{cls:'f-vip',label:'VIP'},fleet:{cls:'f-fleet',label:'FLEET'},callback:{cls:'f-callback',label:'CALLBACK'}};
+    var fm2=flagMap2[f];if(fm2){var fb2=mk('span','flag '+fm2.cls);fb2.textContent=fm2.label;flagRow2.appendChild(fb2);}
+  });
   var detail=mk('div','jcard-detail');
   if(job.eta){var etaD=mk('div','jcom-i');etaD.textContent='Handover: '+fmtDate(job.eta);detail.appendChild(etaD);}
   if(job.handoverDate){var hd=mk('div','jcom-i');hd.textContent='H/O Date: '+fmtDate(job.handoverDate);detail.appendChild(hd);}
@@ -1607,7 +1620,7 @@ function makeSalesCard(job){
     if(lPrev2.children.length)detail.appendChild(lPrev2);
   }else if(job.labHrs){var lhS=mk('div','jcom-i');lhS.textContent='Hours: '+parseFloat(job.labHrs).toFixed(1)+'h';detail.appendChild(lhS);}
   if(job.notes){var nd=mk('div','jnotes');nd.textContent=job.notes.slice(0,80)+(job.notes.length>80?'…':'');detail.appendChild(nd);}
-  app(card,top,row2,dvlaRow2,detail);
+  app(card,top,row2,dvlaRow2,flagRow2,detail);
   card.addEventListener('click',function(){if(isTechView()){openTechStageModal(job.id,'sales');}else{openEditSales(job.id);}});
   return card;
 }
@@ -1916,6 +1929,14 @@ document.getElementById('saveBtn').addEventListener('click',function(){
   };
   if(editBoard==='retail'){
     var flags=[];document.querySelectorAll('.ftog').forEach(function(b){var f=b.dataset.flag;if(b.classList.contains('on-'+f))flags.push(f);});
+    if(editId){
+      var prevJobForHold=S.retailJobs.find(function(j){return j.id===editId;});
+      var prevFlagsForHold=(prevJobForHold&&prevJobForHold.flags)||[];
+      if(flags.indexOf('hold')!==-1 && prevFlagsForHold.indexOf('hold')===-1){
+        var endedTimings=stopActiveTimingsForJob(editId);
+        if(endedTimings.length)showToast('Clock stopped — job placed on hold ('+endedTimings.map(function(t){return t.techName;}).join(', ')+')','onsite');
+      }
+    }
     var rJobLines=_getJobLines('retail');
     var rLabHrs=rJobLines.reduce(function(s,l){return s+(parseFloat(l.hrs)||0);},0);
     Object.assign(baseData,{flags:flags,jobLines:rJobLines,labHrs:rLabHrs,value:parseFloat(document.getElementById('fValue').value)||0,authRef:document.getElementById('fAuthRef').value.trim()});
@@ -3028,6 +3049,7 @@ function renderSettings(){
     listEl.appendChild(ul);
   });
   renderDVLAKeyStatus();
+  renderAutoClockOffSettings();
 }
 
 function addMember(type){
@@ -3395,6 +3417,7 @@ function startTechLogin(){
 function onStateReady(){
   restoreSession();
   applyAdminUI();
+  startAutoClockOffWatcher();
 }
 (function(){
   if(sessionStorage.getItem('dwc_auth')==='1'){
@@ -4532,6 +4555,83 @@ function parseHHMM(s){ // "HH:MM" → minutes since midnight
   return parseInt(p[0],10)*60+parseInt(p[1],10);
 }
 
+/* ── Auto Clock-Off (settings) ──
+   At the configured time each day, any job still clocked on by any
+   technician is automatically clocked off and flagged ON HOLD. */
+function toggleAutoClockOff(){
+  if(!S.set.autoClockOff)S.set.autoClockOff={enabled:false,time:'17:00',lastRun:null};
+  S.set.autoClockOff.enabled=!S.set.autoClockOff.enabled;
+  save();
+  renderAutoClockOffSettings();
+  showToast('Auto clock-off '+(S.set.autoClockOff.enabled?'enabled':'disabled'),'onsite');
+}
+function saveAutoClockOffSettings(){
+  var t=document.getElementById('acoTimeInput').value;
+  if(!t){alert('Please choose a time first.');return;}
+  if(!S.set.autoClockOff)S.set.autoClockOff={enabled:false,time:'17:00',lastRun:null};
+  S.set.autoClockOff.time=t;
+  save();
+  renderAutoClockOffSettings();
+  showToast('Auto clock-off time set to '+t,'onsite');
+}
+function renderAutoClockOffSettings(){
+  var aco=S.set&&S.set.autoClockOff?S.set.autoClockOff:{enabled:false,time:'17:00'};
+  var btn=document.getElementById('acoToggle');
+  if(btn){btn.textContent=aco.enabled?'ON':'OFF';btn.className='acopill'+(aco.enabled?' on':'');}
+  var ti=document.getElementById('acoTimeInput');
+  if(ti&&document.activeElement!==ti)ti.value=aco.time||'17:00';
+  var st=document.getElementById('acoStatus');
+  if(st)st.textContent=aco.enabled
+    ?('Active — any job still clocked on at '+(aco.time||'17:00')+' will be auto clocked-off and placed on hold.')
+    :'Currently disabled — nothing will auto clock-off.';
+}
+/* Sweep every currently-active job timing, clock it off, and flag the job ON HOLD */
+function runAutoClockOffSweep(){
+  if(!S.jobTimings)S.jobTimings=[];
+  var active=S.jobTimings.filter(function(t){return !t.endTime;});
+  if(!active.length){
+    S.set.autoClockOff.lastRun=dateStrISO();
+    save();
+    return;
+  }
+  var affected=[];
+  active.forEach(function(t){
+    var endISO=new Date().toISOString();
+    t.endTime=timeStrNow();
+    t.endISO=endISO;
+    t.durationMins=msToMinsUp(new Date(endISO).getTime()-new Date(t.startISO).getTime());
+    var jobList=t.board==='sales'?S.salesJobs:S.retailJobs;
+    var job=(jobList||[]).find(function(j){return j.id===t.jobId;});
+    if(job){
+      if(!job.flags)job.flags=[];
+      if(job.flags.indexOf('hold')===-1)job.flags.push('hold');
+      affected.push((job.reg||'job')+' ('+t.techName+')');
+    }
+  });
+  S.set.autoClockOff.lastRun=dateStrISO();
+  save();
+  refreshAll();
+  showToast('Auto clock-off: '+affected.length+' job'+(affected.length!==1?'s':'')+' placed on hold — '+affected.join(', '),'onsite');
+}
+/* Checked periodically + whenever fresh state arrives */
+function checkAutoClockOff(){
+  if(!S||!S.set||!S.set.autoClockOff||!S.set.autoClockOff.enabled)return;
+  var aco=S.set.autoClockOff;
+  var today=dateStrISO();
+  if(aco.lastRun===today)return; // already run today
+  var nowMins=parseHHMM(timeStrNow());
+  var cutMins=parseHHMM(aco.time||'17:00');
+  if(cutMins===null)return;
+  if(nowMins>=cutMins)runAutoClockOffSweep();
+}
+var _autoClockOffWatcherStarted=false;
+function startAutoClockOffWatcher(){
+  if(_autoClockOffWatcherStarted)return;
+  _autoClockOffWatcherStarted=true;
+  checkAutoClockOff();
+  setInterval(checkAutoClockOff,60000);
+}
+
 /* ── Job Timing (clock on/off per job) ── */
 var _jobTimerInterval = null;
 
@@ -4539,6 +4639,22 @@ function getActiveJobTiming(jobId){
   if(!S.jobTimings)return null;
   var myId = currentUser&&currentUser.techId;
   return S.jobTimings.find(function(t){return t.jobId===jobId&&t.techId===myId&&!t.endTime;});
+}
+/* Stop the clock on ANY active timing(s) for a job, regardless of which tech clocked on.
+   Used when a job is put on hold (manually via the flag, or via the auto clock-off sweep). */
+function stopActiveTimingsForJob(jobId){
+  if(!S.jobTimings)S.jobTimings=[];
+  var ended=[];
+  S.jobTimings.forEach(function(t){
+    if(t.jobId===jobId && !t.endTime){
+      var endISO=new Date().toISOString();
+      t.endTime=timeStrNow();
+      t.endISO=endISO;
+      t.durationMins=msToMinsUp(new Date(endISO).getTime()-new Date(t.startISO).getTime());
+      ended.push(t);
+    }
+  });
+  return ended;
 }
 
 function refreshTsmClockBtn(){
