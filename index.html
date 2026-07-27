@@ -433,6 +433,45 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 #pinError{font-size:12px;color:#e74c3c;height:16px;margin-top:4px;}
 #appShell{display:none;}
 
+/* ── HOME GATE ── */
+#homeOverlay{display:none;position:fixed;inset:0;background:#003087;z-index:500;align-items:center;justify-content:center;flex-direction:column;gap:18px;padding:20px;}
+#homeOverlay .home-logo{font-size:12px;font-weight:900;letter-spacing:2px;color:#fff;margin-bottom:2px;text-transform:uppercase;text-align:center;}
+#homeOverlay .home-title{font-size:22px;font-weight:800;color:#fff;text-align:center;margin-bottom:6px;}
+.home-choices{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;max-width:640px;}
+.home-card{background:#fff;border-radius:10px;padding:30px 26px;text-align:center;width:250px;box-shadow:0 8px 32px rgba(0,0,0,0.3);cursor:pointer;border:3px solid transparent;transition:transform 0.12s,border-color 0.12s;}
+.home-card:hover{transform:translateY(-3px);border-color:#e8a100;}
+.home-card .home-icon{font-size:38px;margin-bottom:10px;}
+.home-card h3{font-size:16px;font-weight:800;color:#1a2b44;margin-bottom:6px;}
+.home-card p{font-size:12px;color:#6b7c96;line-height:1.4;}
+
+/* ── CUSTOMER DATA ENTRY ── */
+#custOverlay{display:none;position:fixed;inset:0;background:#f0f2f5;z-index:500;overflow-y:auto;flex-direction:column;align-items:center;padding:24px 16px 60px;}
+.cust-wrap{background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.1);max-width:560px;width:100%;padding:26px 28px 32px;}
+.cust-hdr{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
+.cust-hdr h2{font-size:20px;font-weight:800;color:#1a2b44;flex:1;}
+.cust-back{background:transparent;border:none;color:#6b7c96;font-size:13px;cursor:pointer;padding:4px 0;}
+.cust-back:hover{color:#003087;}
+.cust-sub{font-size:13px;color:#6b7c96;margin-bottom:18px;}
+.cust-toggle{display:flex;border-radius:6px;overflow:hidden;border:1px solid #d1d9e6;margin-bottom:20px;}
+.cust-toggle-btn{flex:1;background:#f7f8fa;border:none;color:#6b7c96;font-size:14px;font-weight:700;padding:12px 10px;cursor:pointer;border-right:1px solid #d1d9e6;}
+.cust-toggle-btn:last-child{border-right:none;}
+.cust-toggle-btn.on{background:#003087;color:#fff;}
+.cust-toggle-btn.on.on-sales{background:#1e8449;}
+.cust-field{margin-bottom:14px;}
+.cust-field label{display:block;font-size:12px;font-weight:700;color:#1a2b44;margin-bottom:4px;}
+.cust-field label .opt{font-weight:400;color:#8fa0b8;}
+.cust-field input,.cust-field textarea{width:100%;background:#f7f8fa;border:1px solid #d1d9e6;border-radius:4px;padding:10px;font-size:14px;color:#1a2b44;font-family:inherit;}
+.cust-field input:focus,.cust-field textarea:focus{outline:none;border-color:#003087;}
+.cust-row2{display:flex;gap:12px;}
+.cust-row2 .cust-field{flex:1;}
+.cust-submit{width:100%;background:#003087;color:#fff;border:none;padding:13px;font-size:15px;font-weight:700;border-radius:5px;cursor:pointer;margin-top:6px;}
+.cust-submit:hover{background:#001f5c;}
+.cust-err{font-size:12px;color:#e74c3c;min-height:16px;margin-top:6px;}
+.cust-success{display:none;text-align:center;padding:30px 10px;}
+.cust-success .ok-icon{font-size:48px;margin-bottom:10px;}
+.cust-success h3{font-size:19px;font-weight:800;color:#1a2b44;margin-bottom:6px;}
+.cust-success p{font-size:13px;color:#6b7c96;margin-bottom:20px;line-height:1.5;}
+
 /* ── SYNC STATUS ── */
 #syncStatus{font-size:11px;font-weight:700;padding:3px 9px;border-radius:3px;white-space:nowrap;flex-shrink:0;}
 
@@ -440,7 +479,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 .kb-hint{font-size:11px;color:#b0bdd0;background:#f7f8fa;border:1px solid #d1d9e6;border-radius:3px;padding:2px 6px;font-family:monospace;}
 
 @media print{
-  .topbar,.tabs,.wtool,.urgency-strip,.board-toggle,.sobar,.moverlay,.confirm-overlay,#pinOverlay,.btn{display:none!important;}
+  .topbar,.tabs,.wtool,.urgency-strip,.board-toggle,.sobar,.moverlay,.confirm-overlay,#pinOverlay,#homeOverlay,#custOverlay,.btn{display:none!important;}
   .view{display:block!important;padding:0!important;}
   body{background:#fff!important;}
 }
@@ -563,6 +602,24 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
 </head>
 <body>
 
+<!-- HOME LANDING PAGE -->
+<div id="homeOverlay">
+  <div class="home-logo">Dealer Workshop Controller</div>
+  <div class="home-title">Welcome — how can we help?</div>
+  <div class="home-choices">
+    <div class="home-card" onclick="showStaffLoginFromHome()">
+      <div class="home-icon">🔒</div>
+      <h3>Staff Login</h3>
+      <p>Workshop team access — Admin, Service Advisor, Sales or Technician.</p>
+    </div>
+    <div class="home-card" onclick="showCustomerEntryFromHome()">
+      <div class="home-icon">📝</div>
+      <h3>Customer Data Entry</h3>
+      <p>Booking in your vehicle? Enter your details here and we'll raise your job card.</p>
+    </div>
+  </div>
+</div>
+
 <!-- PIN GATE -->
 <div id="pinOverlay">
   <div class="pin-logo">Dealer Workshop Controller</div>
@@ -572,8 +629,9 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
     <button id="pinEnter" onclick="showAdminPinBox()" style="margin-bottom:8px;">🔐 Admin</button>
     <button id="pinEnter" style="background:#1a5276;margin-bottom:8px;" onclick="showRoleLoginFromGate('adv')">📋 Service Advisor</button>
     <button id="pinEnter" style="background:#1e8449;margin-bottom:8px;" onclick="showRoleLoginFromGate('sales')">🚗 Sales</button>
-    <button id="pinEnter" style="background:#6c3483;" onclick="showTechLoginFromGate()">🔧 Technician</button>
+    <button id="pinEnter" style="background:#6c3483;margin-bottom:8px;" onclick="showTechLoginFromGate()">🔧 Technician</button>
     <div id="pinError"></div>
+    <button onclick="backToHomeFromRoleBox()" style="background:transparent;color:#6b7c96;border:none;font-size:12px;margin-top:2px;cursor:pointer;">← Back to Home</button>
   </div>
   <div class="pin-box" id="adminPinBox" style="display:none;">
     <h2>Admin Login</h2>
@@ -582,6 +640,53 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
     <button id="pinEnter" onclick="checkPin()">Enter</button>
     <div id="pinError2"></div>
     <button onclick="showRoleBox()" style="background:transparent;color:#6b7c96;border:none;font-size:12px;margin-top:8px;cursor:pointer;">← Back</button>
+  </div>
+</div>
+
+<!-- CUSTOMER DATA ENTRY -->
+<div id="custOverlay">
+  <div class="cust-wrap">
+    <div id="custFormBox">
+      <div class="cust-hdr"><h2>Vehicle Booking Form</h2></div>
+      <div class="cust-sub">Please fill in your details and we'll get your job card raised.</div>
+
+      <div class="cust-toggle">
+        <button type="button" class="cust-toggle-btn on" id="custTogRetail" onclick="setCustBoard('retail')">🔧 Retail / Service</button>
+        <button type="button" class="cust-toggle-btn" id="custTogSales" onclick="setCustBoard('sales')">🚗 Sales / New Vehicle</button>
+      </div>
+
+      <div class="cust-field">
+        <label>Vehicle Registration <span class="opt">(required)</span></label>
+        <input type="text" id="custReg" placeholder="e.g. AB12 CDE" style="text-transform:uppercase;letter-spacing:1px;font-weight:700;">
+      </div>
+      <div class="cust-row2">
+        <div class="cust-field"><label>Make <span class="opt">(optional)</span></label><input type="text" id="custMake" placeholder="e.g. Citroën"></div>
+        <div class="cust-field"><label>Model <span class="opt">(optional)</span></label><input type="text" id="custModel" placeholder="e.g. C3"></div>
+      </div>
+      <div class="cust-field"><label>Colour <span class="opt">(optional)</span></label><input type="text" id="custColour" placeholder="e.g. Grey"></div>
+
+      <div class="cust-row2">
+        <div class="cust-field"><label>Your Name <span class="opt">(required)</span></label><input type="text" id="custName" placeholder="Full name"></div>
+        <div class="cust-field"><label>Contact Number <span class="opt">(required)</span></label><input type="tel" id="custPhone" placeholder="e.g. 07123 456789"></div>
+      </div>
+
+      <div class="cust-field">
+        <label>What can we help with? <span class="opt">(optional)</span></label>
+        <textarea id="custNotes" rows="3" placeholder="e.g. Annual service, strange noise from front brakes, interested in a new C3..."></textarea>
+      </div>
+
+      <div class="cust-err" id="custErr"></div>
+      <button class="cust-submit" onclick="submitCustomerJob()">Submit Booking</button>
+      <button class="cust-back" onclick="backToHomeFromCustomer()" style="margin-top:10px;">← Back to Home</button>
+    </div>
+
+    <div class="cust-success" id="custSuccessBox">
+      <div class="ok-icon">✅</div>
+      <h3>Thanks — you're booked in!</h3>
+      <p id="custSuccessMsg">Your job card has been raised and added to our booking board. A member of the team will be in touch to confirm details.</p>
+      <button class="cust-submit" style="max-width:260px;" onclick="resetCustomerForm()">Submit Another Booking</button>
+      <button class="cust-back" onclick="backToHomeFromCustomer()" style="margin-top:10px;">← Back to Home</button>
+    </div>
   </div>
 </div>
 
@@ -3435,11 +3540,108 @@ function onStateReady(){
   applyAdminUI();
   startAutoClockOffWatcher();
 }
+
+/* ═══════════════════════════════════════════
+   HOME LANDING PAGE / CUSTOMER DATA ENTRY
+═══════════════════════════════════════════ */
+function showStaffLoginFromHome(){
+  document.getElementById('homeOverlay').style.display='none';
+  document.getElementById('pinOverlay').style.display='flex';
+}
+function backToHomeFromRoleBox(){
+  document.getElementById('pinOverlay').style.display='none';
+  showRoleBox();
+  document.getElementById('homeOverlay').style.display='flex';
+}
+function showCustomerEntryFromHome(){
+  document.getElementById('homeOverlay').style.display='none';
+  document.getElementById('custOverlay').style.display='flex';
+  resetCustomerForm();
+  ensureStateLoadedForCustomer();
+}
+function backToHomeFromCustomer(){
+  document.getElementById('custOverlay').style.display='none';
+  document.getElementById('homeOverlay').style.display='flex';
+}
+/* Loads workshop state quietly in the background (without showing the staff
+   app shell) so a customer submission can be pushed straight to the board. */
+function ensureStateLoadedForCustomer(){
+  if(_supabaseLoaded)return;
+  loadFromSupabase();
+}
+
+var _custBoard='retail';
+function setCustBoard(board){
+  _custBoard=board;
+  var rBtn=document.getElementById('custTogRetail'), sBtn=document.getElementById('custTogSales');
+  rBtn.classList.toggle('on',board==='retail');
+  sBtn.classList.toggle('on',board==='sales');
+  sBtn.classList.toggle('on-sales',board==='sales');
+}
+
+function resetCustomerForm(){
+  ['custReg','custMake','custModel','custColour','custName','custPhone','custNotes'].forEach(function(id){
+    var el=document.getElementById(id); if(el)el.value='';
+  });
+  document.getElementById('custErr').textContent='';
+  setCustBoard('retail');
+  document.getElementById('custFormBox').style.display='block';
+  document.getElementById('custSuccessBox').style.display='none';
+}
+
+function submitCustomerJob(){
+  var errEl=document.getElementById('custErr');
+  errEl.textContent='';
+  var reg=document.getElementById('custReg').value.trim().toUpperCase().replace(/\s/g,'');
+  var name=document.getElementById('custName').value.trim();
+  var phone=document.getElementById('custPhone').value.trim();
+  if(!reg){errEl.textContent='Please enter your vehicle registration.';return;}
+  if(!name){errEl.textContent='Please enter your name.';return;}
+  if(!phone){errEl.textContent='Please enter a contact number.';return;}
+  if(!S||!S.retailJobs||!S.salesJobs){errEl.textContent='Still connecting — please wait a moment and try again.';return;}
+
+  var allRegs=(S.retailJobs||[]).concat(S.salesJobs||[]).map(function(j){return(j.reg||'').toUpperCase().replace(/\s/g,'');});
+  if(allRegs.indexOf(reg)!==-1){
+    errEl.textContent='A job for this registration is already on our board — please speak to a member of staff.';
+    return;
+  }
+
+  var make=document.getElementById('custMake').value.trim();
+  var model=document.getElementById('custModel').value.trim();
+  var colour=document.getElementById('custColour').value.trim();
+  var custNotesTxt=document.getElementById('custNotes').value.trim();
+  var noteParts=['Customer self-booking — '+name+' ('+phone+')'];
+  if(custNotesTxt)noteParts.push(custNotesTxt);
+  var todayIso=new Date().toISOString().split('T')[0];
+
+  var baseData={
+    reg:reg, make:make, model:model, colour:colour, vin:'', wipNo:'',
+    repCats:[], notes:noteParts.join(' — '),
+    dateIn:todayIso, eta:'', advId:'', techId:'',
+    motExp:'', taxDue:'', taxStatus:''
+  };
+
+  if(_custBoard==='retail'){
+    Object.assign(baseData,{stage:'booking',flags:[],jobLines:[],labHrs:0,value:0,authRef:''});
+    var newRJob=Object.assign({id:uid()},baseData);
+    S.retailJobs.push(newRJob);
+  }else{
+    Object.assign(baseData,{stage:'allocated',salesId:'',handoverDate:'',jobLines:[],labHrs:0});
+    var newSJob=Object.assign({id:uid()},baseData);
+    S.salesJobs.push(newSJob);
+  }
+  save();
+
+  document.getElementById('custFormBox').style.display='none';
+  document.getElementById('custSuccessBox').style.display='block';
+  document.getElementById('custSuccessMsg').textContent='Your job card for '+reg+' has been raised and added to our '+(_custBoard==='retail'?'Retail Booking':'Sales/PDI')+' board. A member of the team will be in touch to confirm details.';
+}
+
 (function(){
   if(sessionStorage.getItem('dwc_auth')==='1'){
     bootApp();
   }else{
-    document.getElementById('pinOverlay').style.display='flex';
+    document.getElementById('homeOverlay').style.display='flex';
   }
 })();
 
