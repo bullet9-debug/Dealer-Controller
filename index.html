@@ -922,7 +922,7 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
     <div class="setcard"><div class="settitle">Service Advisors</div><div class="setbody" id="advList"></div><div class="addrow"><input class="addinput" id="addAdvIn" placeholder="New advisor..." style="flex:2"><input class="addinput" id="addAdvPin" placeholder="PIN (4 digits)" maxlength="4" inputmode="numeric" style="width:110px;letter-spacing:3px;" type="password"><button class="addbtn" onclick="addMemberRole('adv')">Add</button></div></div>
     <div class="setcard"><div class="settitle">Technicians</div><div class="setbody" id="techList"></div><div class="addrow"><input class="addinput" id="addTechIn" placeholder="New technician..." style="flex:2"><input class="addinput" id="addTechPin" placeholder="PIN (4 digits)" maxlength="4" inputmode="numeric" style="width:110px;letter-spacing:3px;" type="password"><button class="addbtn" onclick="addMemberTech()">Add</button></div></div>
     <div class="setcard"><div class="settitle">Sales Executives</div><div class="setbody" id="salesList"></div><div class="addrow"><input class="addinput" id="addSalesIn" placeholder="New sales exec..."><button class="addbtn" onclick="addMember('sales')">Add</button></div></div>
-    <div class="setcard"><div class="settitle">DVLA Vehicle Lookup</div><div class="setbody"><p>Enter your DVLA Vehicle Enquiry Service API key. Get a free key at <b>developer-portal.driver-vehicle-licensing.agency.gov.uk</b></p><label class="flbl" style="display:block;margin-bottom:4px;">API Key</label><div style="display:flex;gap:6px;"><input class="addinput" id="dvlaKeyInput" placeholder="Paste your API key..." type="password" style="flex:1;font-family:monospace;"><button class="addbtn" onclick="saveDVLAKey()">Save</button></div><div id="dvlaKeyStatus" style="font-size:11px;margin-top:6px;color:#6b7c96;"></div><button class="btn" style="margin-top:4px;font-size:11px;" onclick="clearDVLACache()">Clear Lookup Cache</button></div></div>
+    <div class="setcard"><div class="settitle">DVLA Vehicle Lookup</div><div class="setbody"><p>Vehicle lookups run through a secure Supabase Edge Function — your DVLA API key lives server-side as a Supabase secret and never touches this browser. To set or rotate it, update the <b>DVLA_API_KEY</b> secret in your Supabase project (see deployment notes).</p><div id="dvlaKeyStatus" style="font-size:11px;margin-top:6px;color:#6b7c96;"></div><button class="btn" style="margin-top:4px;font-size:11px;" onclick="clearDVLACache()">Clear Lookup Cache</button></div></div>
     <div class="setcard"><div class="settitle">Auto Clock-Off</div><div class="setbody"><p>At the set time, any technician still clocked onto a job will be automatically clocked off, and that job will be flagged <b>ON HOLD</b> until it's picked back up.</p><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;"><button class="acopill" id="acoToggle" onclick="toggleAutoClockOff()">OFF</button><input type="time" class="addinput" id="acoTimeInput" style="width:120px;"><button class="addbtn" onclick="saveAutoClockOffSettings()">Save Time</button></div><div id="acoStatus" style="font-size:11px;color:#6b7c96;"></div></div></div>
     <div class="setcard"><div class="settitle">Data</div><div class="setbody"><p>Export saves all data to a JSON file. Import restores it.</p><button class="btn gr" onclick="exportData()">Export Data</button><label class="btn" style="cursor:pointer;text-align:center;margin-left:6px;">Import Data<input type="file" accept=".json" id="importFile" style="display:none;" onchange="importData(event)"></label></div></div>
     <div class="setcard"><div class="settitle">Danger Zone</div><div class="setbody"><button class="btn dr" onclick="clearJobs()">Clear All Jobs</button> <button class="btn dr" onclick="clearActions()">Clear Actions</button> <button class="btn dr" onclick="resetAll()" style="margin-top:6px;">Reset Everything</button></div></div>
@@ -3423,18 +3423,16 @@ function renderDiary(){
 /* ═══════════════════════════════════════════
    DVLA LOOKUP
 ═══════════════════════════════════════════ */
-var DVLA_KEY_SK='dwc_dvla_key';var DVLA_CACHE_SK='dwc_dvla_cache';
-function getDVLAKey(){return localStorage.getItem(DVLA_KEY_SK)||'';}
+var DVLA_CACHE_SK='dwc_dvla_cache';
 function getDVLACache(){try{return JSON.parse(localStorage.getItem(DVLA_CACHE_SK)||'{}');}catch(e){return{};}}
 function saveDVLACache(cache){try{localStorage.setItem(DVLA_CACHE_SK,JSON.stringify(cache));}catch(e){}}
-function saveDVLAKey(){var key=document.getElementById('dvlaKeyInput').value.trim();if(!key){alert('Please paste your API key first.');return;}localStorage.setItem(DVLA_KEY_SK,key);var st=document.getElementById('dvlaKeyStatus');st.textContent='API key saved.';st.style.color='#1e8449';document.getElementById('dvlaKeyInput').value='';}
-function clearDVLACache(){localStorage.removeItem(DVLA_CACHE_SK);var st=document.getElementById('dvlaKeyStatus');st.textContent='Cache cleared.';st.style.color='#6b7c96';}
-function renderDVLAKeyStatus(){var key=getDVLAKey();var st=document.getElementById('dvlaKeyStatus');if(!st)return;if(key){st.textContent='API key saved (ends: ...'+key.slice(-6)+').';st.style.color='#1e8449';}else{st.textContent='No API key saved yet.';st.style.color='#8fa0b8';}}
+function clearDVLACache(){localStorage.removeItem(DVLA_CACHE_SK);var st=document.getElementById('dvlaKeyStatus');if(st){st.textContent='Cache cleared.';st.style.color='#6b7c96';}}
+function renderDVLAKeyStatus(){var st=document.getElementById('dvlaKeyStatus');if(!st)return;st.textContent='Lookups run via Edge Function — no key stored in this browser.';st.style.color='#1e8449';}
 
 function onRegInput(){
   var reg=document.getElementById('fReg').value.trim().toUpperCase().replace(/\s/g,'');
   var row=document.getElementById('dvlaRow');var btn=document.getElementById('dvlaBtn');
-  if(reg.length>=5&&getDVLAKey()){
+  if(reg.length>=5){
     row.style.display='block';
     var cache=getDVLACache();
     if(cache[reg]){
@@ -3455,15 +3453,16 @@ function onRegInput(){
 
 function lookupDVLA(){
   var reg=document.getElementById('fReg').value.trim().toUpperCase().replace(/\s/g,'');if(!reg)return;
-  var key=getDVLAKey();if(!key){alert('No DVLA API key found. Please add it in Settings.');return;}
   var btn=document.getElementById('dvlaBtn');var statusEl=document.getElementById('dvlaStatus');var detailEl=document.getElementById('dvlaDetail');
   btn.disabled=true;statusEl.style.display='inline-block';statusEl.className='dvla-status spin';statusEl.textContent='Looking up '+reg+'...';detailEl.innerHTML='';
-  var DVLA_URL='https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/vehicles';
-  var PROXY='https://corsproxy.io/?url='+encodeURIComponent(DVLA_URL);
-  function doFetch(url){return fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key},body:JSON.stringify({registrationNumber:reg})});}
-  doFetch(PROXY).catch(function(){return doFetch('https://api.allorigins.win/raw?url='+encodeURIComponent(DVLA_URL));})
-  .then(function(res){if(!res.ok){return res.json().then(function(e){throw new Error(e.errors&&e.errors[0]?e.errors[0].detail:'HTTP '+res.status);});}return res.json();})
-  .then(function(data){if(data.errors&&data.errors[0])throw new Error(data.errors[0].detail||'DVLA error');var cache=getDVLACache();cache[reg]=data;saveDVLACache(cache);populateDVLAResult(data,false);btn.disabled=false;})
+  supabase.functions.invoke('dvla-lookup',{body:{registrationNumber:reg}})
+  .then(function(res){
+    if(res.error)throw new Error(res.error.message||'Lookup failed');
+    var data=res.data;
+    if(data&&data.errors&&data.errors[0])throw new Error(data.errors[0].detail||'DVLA error');
+    if(data&&data.error)throw new Error(data.error);
+    var cache=getDVLACache();cache[reg]=data;saveDVLACache(cache);populateDVLAResult(data,false);btn.disabled=false;
+  })
   .catch(function(err){var statusEl=document.getElementById('dvlaStatus');statusEl.className='dvla-status err';statusEl.textContent='Lookup failed: '+err.message;btn.disabled=false;});
 }
 
