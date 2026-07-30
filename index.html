@@ -921,6 +921,19 @@ body{background:#f0f2f5;font-family:Arial,sans-serif;color:#1a2b44;min-height:10
     <div class="setcard"><div class="settitle">Data</div><div class="setbody"><p>Export saves all data to a JSON file. Import restores it.</p><button class="btn gr" onclick="exportData()">Export Data</button><label class="btn" style="cursor:pointer;text-align:center;margin-left:6px;">Import Data<input type="file" accept=".json" id="importFile" style="display:none;" onchange="importData(event)"></label></div></div>
     <div class="setcard"><div class="settitle">Danger Zone</div><div class="setbody"><button class="btn dr" onclick="clearJobs()">Clear All Jobs</button> <button class="btn dr" onclick="clearActions()">Clear Actions</button> <button class="btn dr" onclick="resetAll()" style="margin-top:6px;">Reset Everything</button></div></div>
     <div class="setcard"><div class="settitle">Admin PIN</div><div class="setbody"><p>Change your 4-digit admin PIN.</p><div style="display:flex;gap:6px;"><input class="addinput" id="newPinIn" placeholder="New 4-digit PIN" type="password" inputmode="numeric" maxlength="4" style="width:140px;letter-spacing:4px;font-weight:800;"><button class="addbtn" onclick="changePin()">Update PIN</button></div></div></div>
+    <div class="setcard" style="grid-column:1/-1;"><div class="settitle">Login Log</div><div class="setbody">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+        <select class="addinput" id="loginLogFilter" style="width:160px;" onchange="renderLoginLog()">
+          <option value="">All roles</option>
+          <option value="adv">Service Advisors</option>
+          <option value="sales">Sales Executives</option>
+          <option value="tech">Technicians</option>
+        </select>
+        <button class="btn" style="font-size:11px;" onclick="renderLoginLog()">Refresh</button>
+        <button class="btn dr" style="font-size:11px;" onclick="clearLoginLog()">Clear Log</button>
+      </div>
+      <div id="loginLogList" style="max-height:340px;overflow-y:auto;font-size:12px;"></div>
+    </div></div>
   </div>
   </div><!-- /setContent -->
 </div>
@@ -1225,6 +1238,7 @@ function defState(){
     tomorrowNotes: [],
     clockRecords: [],
     jobTimings: [],
+    loginLog: [],
     set: {
       adv:   [{id:'a1',name:'Paul',pin:''},{id:'a2',name:'Joe',pin:''},{id:'a3',name:'Oliver',pin:''}],
       tech:  [{id:'t1',name:'Tech 1',pin:''},{id:'t2',name:'Tech 2',pin:''},{id:'t3',name:'Tech 3',pin:''},{id:'t4',name:'Tech 4',pin:''},{id:'t5',name:'Tech 5',pin:''},{id:'t6',name:'Tech 6',pin:''}],
@@ -1248,6 +1262,7 @@ function applyState(data){
   if(!S.tomorrowNotes)S.tomorrowNotes=[];
   if(!S.clockRecords)S.clockRecords=[];
   if(!S.jobTimings)S.jobTimings=[];
+  if(!S.loginLog)S.loginLog=[];
   if(!S.set.adv)S.set.adv=defState().set.adv;
   if(!S.set.tech)S.set.tech=defState().set.tech;
   if(!S.set.sales)S.set.sales=defState().set.sales;
@@ -3248,6 +3263,33 @@ function renderSettings(){
   });
   renderDVLAKeyStatus();
   renderAutoClockOffSettings();
+  renderLoginLog();
+}
+
+function renderLoginLog(){
+  var wrap=document.getElementById('loginLogList');
+  if(!wrap)return;
+  var filter=(document.getElementById('loginLogFilter')||{}).value||'';
+  var roleLbl={adv:'Service Advisor',sales:'Sales Exec',tech:'Technician'};
+  var log=(S.loginLog||[]).slice().filter(function(e){return !filter||e.role===filter;}).sort(function(a,b){return new Date(b.ts)-new Date(a.ts);});
+  wrap.innerHTML='';
+  if(!log.length){var e=mk('div');e.style.cssText='font-size:12px;color:#8fa0b8;padding:8px 0;';e.textContent='No logins recorded yet.';wrap.appendChild(e);return;}
+  var tbl=mk('div');
+  log.forEach(function(entry){
+    var row=mk('div');
+    row.style.cssText='display:flex;justify-content:space-between;gap:10px;padding:6px 4px;border-bottom:1px solid #eef1f6;';
+    var left=mk('span');left.style.cssText='font-weight:700;color:#1a2b44;';
+    left.textContent=(entry.name||'?')+' — '+(roleLbl[entry.role]||entry.role);
+    var right=mk('span');right.style.cssText='color:#6b7c96;';
+    var d=new Date(entry.ts);
+    right.textContent=isNaN(d)?'':d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    row.appendChild(left);row.appendChild(right);
+    tbl.appendChild(row);
+  });
+  wrap.appendChild(tbl);
+}
+function clearLoginLog(){
+  confirmAction('Clear the entire login log? This cannot be undone.',function(){S.loginLog=[];save();renderLoginLog();});
 }
 
 function addMember(type){
@@ -4202,6 +4244,10 @@ function submitTechLogin(){
   currentUser = {type:_loginRole, staffId:member.id, techId:member.id, advId:member.id, salesId:member.id, name:member.name};
   sessionStorage.setItem('dwc_user', JSON.stringify(currentUser));
   sessionStorage.setItem('dwc_auth','1');
+  if(!S.loginLog)S.loginLog=[];
+  S.loginLog.push({id:uid(), role:_loginRole, staffId:member.id, name:member.name, ts:new Date().toISOString()});
+  if(S.loginLog.length>1000)S.loginLog=S.loginLog.slice(-1000);
+  save();
   // Clock in if tech
   if(_loginRole === 'tech') clockIn(member.id, member.name);
   applyUserUI();
