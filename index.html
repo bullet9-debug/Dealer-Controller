@@ -1370,6 +1370,12 @@ function dpToIso(id){var el=document.getElementById(id);return el?el.value:'';}
 function clearDp(id){var el=document.getElementById(id);if(el)el.value='';var btnMap={'fDateIn':'fDateInBtn','fEta':'fEtaBtn','fHandover':'fHandoverBtn','fSchedDate':'fSchedDateBtn'};var btnId=btnMap[id];var btn=btnId&&document.getElementById(btnId);if(btn){btn.textContent='📅 Select date';btn.className='date-display-btn no-date';}}
 function fmtDate(iso){if(!iso)return'';var p=iso.split('-');if(p.length!==3)return iso;return p[2]+'/'+p[1]+'/'+p[0].slice(2);}
 function capitalise(str){if(!str)return'';return str.charAt(0).toUpperCase()+str.slice(1).toLowerCase();}
+var MAKE_OVERRIDES={'bmw':'BMW','vw':'VW','mg':'MG','ds':'DS','seat':'SEAT','byd':'BYD','gwm':'GWM'};
+function titleCaseMake(str){
+  if(!str)return'';
+  var t=str.toLowerCase().replace(/(^|[\s\-\/])([a-z])/g,function(m,sep,c){return sep+c.toUpperCase();});
+  return t.replace(/[a-z]+/gi,function(w){var o=MAKE_OVERRIDES[w.toLowerCase()];return o||w;});
+}
 
 function etaStatus(job){
   if(!job.eta)return'none';
@@ -3415,7 +3421,7 @@ function lookupDVLA(){
 
 function populateDVLAResult(data,fromCache){
   var statusEl=document.getElementById('dvlaStatus');
-  var make=data.make?capitalise(data.make):'';
+  var make=data.make?titleCaseMake(data.make):'';
   var model=data.model?capitalise(data.model):'';
   var colour=data.colour?capitalise(data.colour):'';
   var year=data.yearOfManufacture||'';
@@ -3432,7 +3438,7 @@ function populateDVLAResult(data,fromCache){
 
   /* --- auto-fill vehicle field --- */
   var vehStr='';if(make)vehStr+=make;if(model)vehStr+=' '+model;if(colour)vehStr+=' '+colour;if(year)vehStr+=' ('+year+')';
-  if(!document.getElementById('fMake').value&&make)document.getElementById('fMake').value=capitalise(make);
+  if(!document.getElementById('fMake').value&&make)document.getElementById('fMake').value=make;
   if(!document.getElementById('fModel').value&&model)document.getElementById('fModel').value=capitalise(model);
   if(!document.getElementById('fColour').value&&colour)document.getElementById('fColour').value=capitalise(colour);
   var vin=data.vin||data.vinNumber||'';
@@ -4921,8 +4927,8 @@ function commitScanImport(){
   toAdd.forEach(function(r){
     S.retailJobs.push({
       id:uid(), reg:r.reg.toUpperCase().replace(/\s/g,''),
-      wipNo:r.wip, veh:r.cust||'',
-      make:'', model:'', colour:'', notes:'',
+      wipNo:r.wip, veh:'',
+      make:'', model:'', colour:'', notes:r.cust?('Customer: '+r.cust):'',
       stage:'booking', dateIn:new Date().toISOString().split('T')[0],
       flags:[], repCats:[]
     });
