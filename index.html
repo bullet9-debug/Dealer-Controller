@@ -1134,6 +1134,8 @@ var WORKSHOP_ID = 'dealer_main';
 var supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 var _saveTimer = null;
 var _syncChannel = null;
+var _pendingSaveData = null;   // clean state waiting to be written to Supabase
+var _saveInFlight = false;     // true while an upsert request is actually in transit
 
 function setSyncStatus(state, msg){
   var el=document.getElementById('syncStatus');if(!el)return;
@@ -1347,15 +1349,49 @@ function save(){
   setTimeout(function(){ firePostSaveNotifs(); }, 50);
   if(!supabase)return;
   if(_saveTimer)clearTimeout(_saveTimer);
+  _pendingSaveData=clean;
   setSyncStatus('saving','↑ Saving...');
-  _saveTimer=setTimeout(async function(){
-    try{
-      var res=await supabase.from('workshop_state').upsert({id:WORKSHOP_ID,data:clean,updated_at:new Date().toISOString()});
-      if(res.error)throw res.error;
-      setSyncStatus('ok','✓ Synced');
-    }catch(e){setSyncStatus('error','⚠ Save failed');}
-  },600);
+  _saveTimer=setTimeout(function(){ flushPendingSave(); },300);
 }
+// Actually performs the upsert of whatever is currently pending. Safe to call
+// more than once (e.g. from the debounce timer AND an unload/visibility
+// handler) — it no-ops if there's nothing queued or a write is already going.
+async function flushPendingSave(){
+  if(_saveTimer){clearTimeout(_saveTimer);_saveTimer=null;}
+  if(!_pendingSaveData||_saveInFlight)return;
+  var clean=_pendingSaveData;
+  _saveInFlight=true;
+  try{
+    var res=await supabase.from('workshop_state').upsert({id:WORKSHOP_ID,data:clean,updated_at:new Date().toISOString()});
+    if(res.error)throw res.error;
+    _pendingSaveData=null;
+    setSyncStatus('ok','✓ Synced');
+  }catch(e){setSyncStatus('error','⚠ Save failed');}
+  finally{_saveInFlight=false;}
+}
+// Flush the instant the tab is backgrounded (switching apps, minimising,
+// clicking away to close it) rather than waiting for the debounce timer —
+// this is what actually saves you in most real "closed it too fast" cases,
+// since the page is still fully alive when visibilitychange fires and the
+// async request gets a real chance to complete.
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden&&_pendingSaveData)flushPendingSave();
+});
+window.addEventListener('pagehide',function(){
+  if(_pendingSaveData)flushPendingSave();
+});
+// Belt-and-braces: if a save is still queued or genuinely mid-flight right
+// as the page is about to unload, make the browser ask the user to confirm
+// before leaving, instead of silently losing the change. Most browsers show
+// a generic "leave site?" prompt rather than custom text — that's fine, it
+// buys the time needed for the flush above to land.
+window.addEventListener('beforeunload',function(e){
+  if(_pendingSaveData||_saveInFlight){
+    e.preventDefault();
+    e.returnValue='';
+    return '';
+  }
+});
 function subscribeToChanges(){
   if(!supabase)return;
   if(_syncChannel)supabase.removeChannel(_syncChannel);
