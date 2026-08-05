@@ -1247,6 +1247,10 @@ function defState(){
     clockRecords: [],
     jobTimings: [],
     loginLog: [],
+    // Per-collection delete tombstones {id: deletedAtMs}, used to merge
+    // incoming realtime/sync state without resurrecting deleted records —
+    // see mergeRemoteState().
+    tombstones: {retailJobs:{}, salesJobs:{}, clockRecords:{}, jobTimings:{}, loginLog:{}, actions:{}, tomorrowNotes:{}},
     set: {
       adv:   [{id:'a1',name:'Paul',pin:''},{id:'a2',name:'Joe',pin:''},{id:'a3',name:'Oliver',pin:''}],
       tech:  [{id:'t1',name:'Tech 1',pin:''},{id:'t2',name:'Tech 2',pin:''},{id:'t3',name:'Tech 3',pin:''},{id:'t4',name:'Tech 4',pin:''},{id:'t5',name:'Tech 5',pin:''},{id:'t6',name:'Tech 6',pin:''}],
@@ -1284,10 +1288,84 @@ function applyState(data){
   if(!S.brief.openedAt)S.brief.openedAt=null;
   if(!S.retailJobs)S.retailJobs=[];
   if(!S.salesJobs)S.salesJobs=[];
+  if(!S.tombstones)S.tombstones=defState().tombstones;
+  TOMBSTONE_COLLECTIONS.forEach(function(name){ if(!S.tombstones[name])S.tombstones[name]={}; });
+  // Safety net: strip anything already marked deleted, in case this row was
+  // last written by a tab that hadn't picked up the deletion yet (see
+  // mergeRemoteState below for how tombstones normally prevent this).
+  TOMBSTONE_COLLECTIONS.forEach(function(name){
+    if(!S[name])return;
+    var tomb=S.tombstones[name];
+    S[name]=S[name].filter(function(item){return !item||!item.id||!tomb[item.id];});
+  });
   if(S.date!==todayStr()){
     S.date=todayStr();S.brief.tasks={};S.brief.att={};
     S.brief.off=false;S.brief.signOffTime=null;S.brief.openedAt=null;S.brief.col={};
   }
+}
+
+/* ═══════════════════════════════════════════
+   STATE MERGE (delete-safe sync)
+   Every save() upserts the *entire* state blob, and realtime pushes the
+   entire blob back out to every tab. If tab B still has an older copy of
+   a job in memory (e.g. it hasn't been touched since before tab A deleted
+   it) and tab B saves for any reason, its stale copy of that job goes
+   back up to Supabase and reappears everywhere. mergeRemoteState() fixes
+   this: instead of blindly replacing local state with whatever arrives,
+   it merges collections record-by-record (newest updatedAt wins) and
+   respects delete tombstones from either side, so a deleted record stays
+   deleted regardless of which tab saves next.
+═══════════════════════════════════════════ */
+var TOMBSTONE_COLLECTIONS=['retailJobs','salesJobs','clockRecords','jobTimings','loginLog','actions','tomorrowNotes'];
+function touch(obj){ if(obj)obj.updatedAt=Date.now(); return obj; }
+function markDeleted(collection,id){
+  if(!id)return;
+  if(!S.tombstones)S.tombstones=defState().tombstones;
+  if(!S.tombstones[collection])S.tombstones[collection]={};
+  S.tombstones[collection][id]=Date.now();
+}
+function _mergeCollection(localArr,incomingArr,localTomb,incomingTomb){
+  localArr=localArr||[];incomingArr=incomingArr||[];
+  localTomb=localTomb||{};incomingTomb=incomingTomb||{};
+  var mergedTomb={};
+  Object.keys(localTomb).forEach(function(k){mergedTomb[k]=localTomb[k];});
+  Object.keys(incomingTomb).forEach(function(k){
+    if(!mergedTomb[k]||incomingTomb[k]>mergedTomb[k])mergedTomb[k]=incomingTomb[k];
+  });
+  var map={},order=[];
+  function ingest(arr){
+    arr.forEach(function(item){
+      if(!item||!item.id)return;
+      if(!(item.id in map))order.push(item.id);
+      var existing=map[item.id];
+      if(!existing||(item.updatedAt||0)>=(existing.updatedAt||0))map[item.id]=item;
+    });
+  }
+  ingest(localArr);ingest(incomingArr);
+  // Prune tombstones older than 90 days so this doesn't grow forever.
+  var cutoff=Date.now()-90*86400000;
+  Object.keys(mergedTomb).forEach(function(k){ if(mergedTomb[k]<cutoff)delete mergedTomb[k]; });
+  var items=order.filter(function(id){return !mergedTomb[id];}).map(function(id){return map[id];});
+  return {items:items,tomb:mergedTomb};
+}
+function mergeRemoteState(incoming){
+  if(!incoming)return;
+  if(!S.tombstones)S.tombstones=defState().tombstones;
+  if(!incoming.tombstones)incoming.tombstones={};
+  TOMBSTONE_COLLECTIONS.forEach(function(name){
+    var r=_mergeCollection(S[name],incoming[name],S.tombstones[name],incoming.tombstones[name]);
+    S[name]=r.items;
+    S.tombstones[name]=r.tomb;
+  });
+  // Settings/brief/date aren't per-record edited the same way, so these
+  // still take whichever copy arrived most recently — that matches the
+  // previous (pre-merge) behaviour and isn't the bug being fixed here.
+  if(incoming.set)S.set=incoming.set;
+  if(incoming.brief)S.brief=incoming.brief;
+  if(incoming.date)S.date=incoming.date;
+  if(!S.set.tech)S.set.tech=defState().set.tech;
+  if(!S.set.adv)S.set.adv=defState().set.adv;
+  if(!S.set.sales)S.set.sales=defState().set.sales;
 }
 
 function refreshAll(){
@@ -1400,7 +1478,7 @@ function subscribeToChanges(){
       if(payload.new&&payload.new.data){
         checkRealtimeNotifs(payload.new.data);
         updateNotifSnapshot();
-        applyState(payload.new.data);refreshAll();
+        mergeRemoteState(payload.new.data);refreshAll();
       }
     }).subscribe();
 }
@@ -2187,7 +2265,7 @@ document.getElementById('saveBtn').addEventListener('click',function(){
         if(modalStage==='ready'&&prev.stage!=='ready')baseData.readyDate=new Date().toISOString();
         else if(modalStage!=='ready')baseData.readyDate=null;
         else baseData.readyDate=prev.readyDate||new Date().toISOString();
-        S.retailJobs[idx]=Object.assign({},prev,baseData);
+        S.retailJobs[idx]=touch(Object.assign({},prev,baseData));
         var updatedRJob=S.retailJobs[idx];
         if(oldTechId && oldTechId!==updatedRJob.techId)stopActiveTimingsForJob(updatedRJob.id);
         if(updatedRJob.techId && (oldStage!==modalStage || oldTechId!==updatedRJob.techId)){
@@ -2196,7 +2274,7 @@ document.getElementById('saveBtn').addEventListener('click',function(){
       }
     }else{
       if(modalStage==='ready')baseData.readyDate=new Date().toISOString();
-      var newRJob=Object.assign({id:uid()},baseData);
+      var newRJob=touch(Object.assign({id:uid()},baseData));
       S.retailJobs.push(newRJob);
       if(newRJob.techId)_applyAutoClockForStage(newRJob, 'retail', modalStage, newRJob.techId, _resolveTechName(newRJob.techId));
     }
@@ -2213,7 +2291,7 @@ document.getElementById('saveBtn').addEventListener('click',function(){
         if(modalStage==='handover'&&sprev.stage!=='handover')baseData.readyDate=new Date().toISOString();
         else if(modalStage!=='handover')baseData.readyDate=null;
         else baseData.readyDate=sprev.readyDate||new Date().toISOString();
-        S.salesJobs[sidx]=Object.assign({},sprev,baseData);
+        S.salesJobs[sidx]=touch(Object.assign({},sprev,baseData));
         var updatedSJob=S.salesJobs[sidx];
         if(oldSTechId && oldSTechId!==updatedSJob.techId)stopActiveTimingsForJob(updatedSJob.id);
         if(updatedSJob.techId && (oldSStage!==modalStage || oldSTechId!==updatedSJob.techId)){
@@ -2222,7 +2300,7 @@ document.getElementById('saveBtn').addEventListener('click',function(){
       }
     }else{
       if(modalStage==='handover')baseData.readyDate=new Date().toISOString();
-      var newSJob=Object.assign({id:uid()},baseData);
+      var newSJob=touch(Object.assign({id:uid()},baseData));
       S.salesJobs.push(newSJob);
       if(newSJob.techId)_applyAutoClockForStage(newSJob, 'sales', modalStage, newSJob.techId, _resolveTechName(newSJob.techId));
     }
@@ -2234,6 +2312,7 @@ document.getElementById('saveBtn').addEventListener('click',function(){
 document.getElementById('delBtn').addEventListener('click',function(){
   if(!editId)return;
   confirmAction('Delete this job?',function(){
+    markDeleted(editBoard==='retail'?'retailJobs':'salesJobs',editId);
     if(editBoard==='retail')S.retailJobs=S.retailJobs.filter(function(j){return j.id!==editId;});
     else S.salesJobs=S.salesJobs.filter(function(j){return j.id!==editId;});
     save();closeModal();renderRetail();renderSales();renderHeader();renderUrgStripR();updateChaseBadge();if(curTab===8)renderDiary();
@@ -2326,7 +2405,7 @@ function addAction(){
   var regEl=document.getElementById('actionReg');var reg=regEl?regEl.value.trim().toUpperCase():'';
   var urgEl=document.getElementById('actionUrg');var urg=urgEl?urgEl.value:'a';
   if(!S.actions)S.actions=[];
-  S.actions.push({id:uid(),text:text,reg:reg||null,urg:urg,done:false});
+  S.actions.push(touch({id:uid(),text:text,reg:reg||null,urg:urg,done:false}));
   if(document.getElementById('actionText'))document.getElementById('actionText').value='';
   if(document.getElementById('actionReg'))document.getElementById('actionReg').value='';
   save();
@@ -2348,7 +2427,7 @@ function renderTmrNotes(){
   S.tomorrowNotes.forEach(function(note,i){
     var item=mk('div','tmr-item'+(note.done?' done':''));
     var tick=mk('div','tmr-tick');tick.textContent=note.done?'✓':'';
-    tick.addEventListener('click',function(){S.tomorrowNotes[i].done=!S.tomorrowNotes[i].done;save();renderTmrNotes();});
+    tick.addEventListener('click',function(){S.tomorrowNotes[i].done=!S.tomorrowNotes[i].done;touch(S.tomorrowNotes[i]);save();renderTmrNotes();});
     var txt=mk('span','tmr-text');txt.textContent=note.text;
     var del=mk('button','tmr-del');del.textContent='✕';del.title='Remove note';
     del.addEventListener('click',function(){S.tomorrowNotes.splice(i,1);save();renderTmrNotes();});
@@ -2362,7 +2441,7 @@ function addTmrNote(){
   var text=inp?inp.value.trim():'';
   if(!text)return;
   if(!S.tomorrowNotes)S.tomorrowNotes=[];
-  S.tomorrowNotes.push({id:uid(),text:text,done:false});
+  S.tomorrowNotes.push(touch({id:uid(),text:text,done:false}));
   inp.value='';
   save();renderTmrNotes();
   showToast('Note added for tomorrow','newjob');
@@ -3891,11 +3970,11 @@ function submitCustomerJob(){
 
   if(_custBoard==='retail'){
     Object.assign(baseData,{stage:'booking',flags:[],jobLines:[],labHrs:0,value:0,authRef:''});
-    var newRJob=Object.assign({id:uid()},baseData);
+    var newRJob=touch(Object.assign({id:uid()},baseData));
     S.retailJobs.push(newRJob);
   }else{
     Object.assign(baseData,{stage:'allocated',salesId:'',handoverDate:'',jobLines:[],labHrs:0});
-    var newSJob=Object.assign({id:uid()},baseData);
+    var newSJob=touch(Object.assign({id:uid()},baseData));
     S.salesJobs.push(newSJob);
   }
   save();
@@ -4286,7 +4365,7 @@ function submitTechLogin(){
   sessionStorage.setItem('dwc_user', JSON.stringify(currentUser));
   sessionStorage.setItem('dwc_auth','1');
   if(!S.loginLog)S.loginLog=[];
-  S.loginLog.push({id:uid(), role:_loginRole, staffId:member.id, name:member.name, ts:new Date().toISOString()});
+  S.loginLog.push(touch({id:uid(), role:_loginRole, staffId:member.id, name:member.name, ts:new Date().toISOString()}));
   if(S.loginLog.length>1000)S.loginLog=S.loginLog.slice(-1000);
   save();
   // Clock in if tech
@@ -4416,6 +4495,7 @@ function commitTechStage(){
   autoManageClockForStage(job, _tsmBoard, stageId);
 
   job.stage = stageId;
+  touch(job);
   save();
   closeTechStageModal();
   if(_tsmBoard==='retail'){ renderRetail(); }
@@ -5012,13 +5092,13 @@ function commitScanImport(){
   if(!toAdd.length){alert('No jobs selected.');return;}
   if(!S.retailJobs)S.retailJobs=[];
   toAdd.forEach(function(r){
-    S.retailJobs.push({
+    S.retailJobs.push(touch({
       id:uid(), reg:r.reg.toUpperCase().replace(/\s/g,''),
       wipNo:r.wip, veh:'',
       make:'', model:'', colour:'', notes:r.cust?('Customer: '+r.cust):'',
       stage:'booking', dateIn:new Date().toISOString().split('T')[0],
       flags:[], repCats:[]
-    });
+    }));
   });
   save(); refreshAll();
   document.getElementById('scanDoneTxt').textContent=toAdd.length+' job'+(toAdd.length!==1?'s':'')+' imported!';
@@ -5201,6 +5281,7 @@ function toggleJobClock(){
     var startMs=new Date(active.startISO).getTime();
     var endMs=new Date(endISO).getTime();
     active.durationMins=msToMinsUp(endMs-startMs);
+    touch(active);
     stopTsmTimer();
     save();
     refreshTsmClockBtn();
@@ -5214,6 +5295,7 @@ function toggleJobClock(){
         t.endTime=timeStrNow();
         t.endISO=endISO2;
         t.durationMins=msToMinsUp(new Date(endISO2).getTime()-new Date(t.startISO).getTime());
+        touch(t);
       }
     });
     var newTiming={
@@ -5231,7 +5313,7 @@ function toggleJobClock(){
       endISO:null,
       durationMins:null
     };
-    S.jobTimings.push(newTiming);
+    S.jobTimings.push(touch(newTiming));
     save();
     refreshTsmClockBtn();
     renderRetail();renderSales();
@@ -5276,6 +5358,7 @@ function _applyAutoClockForStage(job, board, newStageId, techId, techName){
     t.endTime=timeStrNow();
     t.endISO=endISO;
     t.durationMins=msToMinsUp(new Date(endISO).getTime()-new Date(t.startISO).getTime());
+    touch(t);
   }
 
   if(newStageId===inProgressStage){
@@ -5283,12 +5366,12 @@ function _applyAutoClockForStage(job, board, newStageId, techId, techName){
     if(!active){
       /* clock off any other active job for this tech first */
       S.jobTimings.forEach(function(t){ if(t.techId===techId&&!t.endTime) endTiming(t); });
-      S.jobTimings.push({
+      S.jobTimings.push(touch({
         id:'jt'+Date.now(), jobId:job.id, reg:job.reg||'', wipNo:job.wipNo||'',
         board:board, techId:techId, techName:techName, date:dateStrISO(),
         startTime:timeStrNow(), startISO:new Date().toISOString(),
         endTime:null, endISO:null, durationMins:null
-      });
+      }));
       showToast('Auto clocked on: '+(job.reg||'job')+(techName?' — '+techName:''),'newjob');
     }
   } else if(pauseStages.indexOf(newStageId)!==-1 || stopStages.indexOf(newStageId)!==-1){
@@ -5352,7 +5435,7 @@ function clockIn(techId, techName){
     breakMins:60,  // default 1-hour lunch break
     totalMins:null
   };
-  S.clockRecords.push(rec);
+  S.clockRecords.push(touch(rec));
   save();
   renderAttendance();
   showToast(techName+' clocked in at '+nowTime,'onsite');
@@ -5622,6 +5705,7 @@ function renderClockManual(rec){
     } else {
       rec.totalMins=null;
     }
+    touch(rec);
     save();
     renderClocking();
     renderAttendance();
@@ -5635,6 +5719,7 @@ function renderClockManual(rec){
   delBtn.textContent='Delete Record';
   delBtn.onclick=function(){
     if(!confirm('Delete this clock record for '+rec.techName+'?'))return;
+    markDeleted('clockRecords',rec.id);
     S.clockRecords=S.clockRecords.filter(function(r){return r.id!==rec.id;});
     _clockSelId=null;
     save();
